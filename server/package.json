@@ -26,12 +26,15 @@
   "description": "Betting integration service with Express and TypeScript",
   "dependencies": {
     "@prisma/client": "^6.11.1",
+    "@types/swagger-ui-express": "^4.1.8",
     "cors": "^2.8.5",
     "dotenv": "^17.0.1",
     "express": "^4.21.2",
     "helmet": "^8.1.0",
     "morgan": "^1.10.0",
-    "prisma": "^6.11.1"
+    "prisma": "^6.11.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@tsconfig/node22": "^22.0.2",
