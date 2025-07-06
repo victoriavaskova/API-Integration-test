@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int      @id @default(autoincrement())
+  username   String   @unique
+  email      String?  @unique
+  lastLogin  DateTime? @map("last_login")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  externalApiAccounts ExternalApiAccount[]
+  bets               Bet[]
+  transactions       Transaction[]
+  apiLogs            ApiLog[]
+  userBalance        UserBalance?
+
+  @@map("users")
+}
+
+model ExternalApiAccount {
+  id                Int     @id @default(autoincrement())
+  userId            Int     @map("user_id")
+  externalUserId    String  @map("external_user_id")
+  externalSecretKey String  @map("external_secret_key")
+  isActive          Boolean @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, externalUserId])
+  @@map("external_api_accounts")
+}
+
+model Bet {
+  id            Int       @id @default(autoincrement())
+  userId        Int       @map("user_id")
+  externalBetId String    @map("external_bet_id")
+  amount        Decimal   @db.Decimal(10, 2)
+  status        BetStatus @default(PENDING)
+  winAmount     Decimal?  @map("win_amount") @db.Decimal(10, 2)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  completedAt   DateTime? @map("completed_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([externalBetId])
+  @@index([userId])
+  @@index([status])
+  @@map("bets")
+}
+
+model Transaction {
+  id            Int             @id @default(autoincrement())
+  userId        Int             @map("user_id")
+  betId         Int?            @map("bet_id")
+  type          TransactionType
+  amount        Decimal         @db.Decimal(10, 2)
+  balanceBefore Decimal         @map("balance_before") @db.Decimal(10, 2)
+  balanceAfter  Decimal         @map("balance_after") @db.Decimal(10, 2)
+  createdAt     DateTime        @default(now()) @map("created_at")
+  description   String?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bet  Bet? @relation(fields: [betId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+model ApiLog {
+  id                  Int      @id @default(autoincrement())
+  userId              Int?     @map("user_id")
+  endpoint            String
+  method              String
+  requestBody         Json?    @map("request_body")
+  responseBody        Json?    @map("response_body")
+  statusCode          Int      @map("status_code")
+  createdAt           DateTime @default(now()) @map("created_at")
+  requestDurationMs   Int?     @map("request_duration_ms")
+  ipAddress           String?  @map("ip_address")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([endpoint])
+  @@index([createdAt])
+  @@map("api_logs")
+}
+
+model UserBalance {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique @map("user_id")
+  balance         Decimal  @default(0) @db.Decimal(10, 2)
+  externalBalance Decimal? @map("external_balance") @db.Decimal(10, 2)
+  lastCheckedAt   DateTime? @map("last_checked_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_balances")
+}
+
+enum BetStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+
+  @@map("bet_status")
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  BET
+  WIN
+
+  @@map("transaction_type")
+} 

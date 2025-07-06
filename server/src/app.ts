@@ -63,7 +63,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
  *                       type: string
  *                       example: ok
  */
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -76,7 +76,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({ 
     message: 'Betting Integration API Server',
     documentation: '/api-docs',
@@ -85,7 +85,7 @@ app.get('/', (req, res) => {
 });
 
 // Error handling middleware
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);
   res.status(500).json({ 
     statusCode: 500,
@@ -95,7 +95,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use('*', (_req, res) => {
   res.status(404).json({
     statusCode: 404,
     error: 'Not Found',
