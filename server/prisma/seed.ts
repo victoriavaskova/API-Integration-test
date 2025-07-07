@@ -1,48 +1,65 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import * as dotenv from 'dotenv';
+
+// Загружаем переменные окружения
+dotenv.config();
 
 const prisma = new PrismaClient();
 
+// Валидация переменных окружения
+function validateEnvironmentVariables(): void {
+  const requiredVars = [
+    'TEST_USER_1_ID', 'TEST_USER_1_SECRET',
+    'TEST_USER_2_ID', 'TEST_USER_2_SECRET', 
+    'TEST_USER_3_ID', 'TEST_USER_3_SECRET',
+    'ADMIN_USER_ID', 'ADMIN_USER_SECRET'
+  ];
+
+  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  
+  if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables:');
+    missingVars.forEach(varName => {
+      console.error(`   - ${varName}`);
+    });
+    console.error('');
+    console.error('Please set these variables in your .env file');
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   console.log('🌱 Starting database seeding...');
+  
+  // Проверяем переменные окружения
+  validateEnvironmentVariables();
 
-  // Создаем тестовых пользователей
+  // Создаем тестовых пользователей с данными из переменных окружения
   const users = [
     {
       username: 'user1',
       email: 'user1@example.com',
-      externalUserId: '1',
-      externalSecretKey: 'test-secret-key-1'
+      externalUserId: process.env.TEST_USER_1_ID!,
+      externalSecretKey: process.env.TEST_USER_1_SECRET!
     },
     {
       username: 'user2',
       email: 'user2@example.com',
-      externalUserId: '2',
-      externalSecretKey: 'test-secret-key-2'
+      externalUserId: process.env.TEST_USER_2_ID!,
+      externalSecretKey: process.env.TEST_USER_2_SECRET!
     },
     {
       username: 'user3',
       email: 'user3@example.com',
-      externalUserId: '3',
-      externalSecretKey: 'test-secret-key-3'
-    },
-    {
-      username: 'user4',
-      email: 'user4@example.com',
-      externalUserId: '4',
-      externalSecretKey: 'test-secret-key-4'
-    },
-    {
-      username: 'user5',
-      email: 'user5@example.com',
-      externalUserId: '5',
-      externalSecretKey: 'test-secret-key-5'
+      externalUserId: process.env.TEST_USER_3_ID!,
+      externalSecretKey: process.env.TEST_USER_3_SECRET!
     },
     {
       username: 'admin',
       email: 'admin@example.com',
-      externalUserId: '99',
-      externalSecretKey: 'admin-secret-key'
+      externalUserId: process.env.ADMIN_USER_ID!,
+      externalSecretKey: process.env.ADMIN_USER_SECRET!
     }
   ];
 
@@ -210,7 +227,7 @@ async function main(): Promise<void> {
     {
       endpoint: '/api/bet',
       method: 'GET',
-      requestBody: null,
+      requestBody: Prisma.JsonNull,
       responseBody: { bet: 3 },
       statusCode: 200,
       requestDurationMs: 120,
@@ -250,5 +267,5 @@ main()
   .catch(async (e) => {
     console.error('❌ Error during seeding:', e);
     await prisma.$disconnect();
-    process.exit(1);
+    throw e;
   }); 

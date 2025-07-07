@@ -3,8 +3,6 @@ import type { ExternalApiConfig } from '../types/config.js';
 
 export const EXTERNAL_API_CONFIG: ExternalApiConfig = {
   baseUrl: process.env.EXTERNAL_API_URL || 'https://bets.tgapps.cloud/api',
-  userId: Number(process.env.EXTERNAL_USER_ID || '1'),
-  secretKey: process.env.EXTERNAL_SECRET_KEY || '',
   
   endpoints: {
     health: '/health',
@@ -46,9 +44,7 @@ export function createSignature(
  */
 export function validateExternalApiConfig(): void {
   const requiredVars = [
-    'EXTERNAL_API_URL',
-    'EXTERNAL_USER_ID', 
-    'EXTERNAL_SECRET_KEY'
+    'EXTERNAL_API_URL'
   ] as const;
 
   const missing = requiredVars.filter((varName) => !process.env[varName]);
@@ -57,15 +53,31 @@ export function validateExternalApiConfig(): void {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
-  // Дополнительные проверки
-  const userId = Number(process.env.EXTERNAL_USER_ID);
-  if (isNaN(userId) || userId <= 0) {
-    throw new Error('EXTERNAL_USER_ID must be a positive number');
+  // Проверяем корректность URL
+  const apiUrl = process.env.EXTERNAL_API_URL;
+  if (!apiUrl || !apiUrl.startsWith('http')) {
+    throw new Error('EXTERNAL_API_URL must be a valid HTTP/HTTPS URL');
+  }
+}
+
+/**
+ * Валидирует пользовательские данные для внешнего API
+ * @param externalUserId - ID пользователя во внешнем API
+ * @param secretKey - Секретный ключ пользователя
+ * @throws Error если данные некорректны
+ */
+export function validateUserCredentials(externalUserId: string, secretKey: string): void {
+  if (!externalUserId || externalUserId.trim() === '') {
+    throw new Error('External user ID is required');
   }
 
-  const secretKey = process.env.EXTERNAL_SECRET_KEY;
+  const userId = Number(externalUserId);
+  if (isNaN(userId) || userId <= 0 || userId > 30) {
+    throw new Error('External user ID must be a number between 1 and 30');
+  }
+
   if (!secretKey || secretKey.length < 16) {
-    throw new Error('EXTERNAL_SECRET_KEY must be at least 16 characters long');
+    throw new Error('Secret key must be at least 16 characters long');
   }
 }
 

@@ -109,7 +109,7 @@ const options: Options = {
       }
     }
   },
-  apis: ['./src/routers/*.ts', './src/controllers/*.ts']
+  apis: ['./src/routes/*.ts', './src/controllers/*.ts', './src/app.ts']
 };
 
 export const specs = swaggerJsdoc(options);

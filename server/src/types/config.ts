@@ -20,8 +20,6 @@ export interface JwtConfig {
 // Типы для конфигурации внешнего API
 export interface ExternalApiConfig {
   baseUrl: string;
-  userId: number;
-  secretKey: string;
   endpoints: {
     health: string;
     auth: string;
@@ -61,8 +59,6 @@ export interface EnvironmentVariables {
   JWT_SECRET?: string;
   JWT_EXPIRES_IN?: string;
   EXTERNAL_API_URL?: string;
-  EXTERNAL_USER_ID?: string;
-  EXTERNAL_SECRET_KEY?: string;
   ADMIN_TOKEN?: string;
 }
 
@@ -72,8 +68,6 @@ export function validateEnvironmentVariables(env: EnvironmentVariables): void {
     'DATABASE_URL',
     'JWT_SECRET',
     'EXTERNAL_API_URL',
-    'EXTERNAL_USER_ID', 
-    'EXTERNAL_SECRET_KEY',
     'ADMIN_TOKEN'
   ] as const;
 
@@ -108,8 +102,6 @@ export function createConfig(env: EnvironmentVariables): Config {
     },
     externalApi: {
       baseUrl: env.EXTERNAL_API_URL!,
-      userId: parseInt(env.EXTERNAL_USER_ID!, 10),
-      secretKey: env.EXTERNAL_SECRET_KEY!,
       endpoints: {
         health: '/health',
         auth: '/auth',

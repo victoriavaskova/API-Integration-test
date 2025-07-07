@@ -69,8 +69,6 @@ export interface ExternalApiError {
 // Типы для конфигурации внешнего API
 export interface ExternalApiConfig {
   baseUrl: string;
-  userId: number;
-  secretKey: string | undefined;
   endpoints: {
     health: string;
     auth: string;

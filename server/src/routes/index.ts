@@ -1,0 +1,67 @@
+import { Router } from 'express';
+import type { Controllers } from '../controllers/index.js';
+import { createAuthRoutes } from './auth.routes.js';
+import { createBettingRoutes } from './betting.routes.js';
+import { createBalanceRoutes } from './balance.routes.js';
+// import { createInternalRoutes } from './internal.routes.js';
+
+/**
+ * Создает и настраивает все маршруты API
+ */
+export function createApiRoutes(controllers: Controllers): Router {
+  const router = Router();
+  console.log('🔧 Creating API routes with controllers:', Object.keys(controllers));
+
+  // Health check endpoint
+  router.get('/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      services: {
+        api: 'ok',
+        database: 'ok', // TODO: implement actual DB check
+        external_api: 'ok' // TODO: implement actual external API check
+      }
+    });
+  });
+
+  // Тестовые маршруты для отладки
+  router.get('/test', (_req, res) => {
+    res.json({ message: 'Test route works!' });
+  });
+
+  router.post('/test-auth', (_req, res) => {
+    res.json({ message: 'Test auth route works!' });
+  });
+
+  // Основные маршруты API
+  const authRoutes = createAuthRoutes(controllers.auth);
+  const bettingRoutes = createBettingRoutes(controllers.betting);
+  const balanceRoutes = createBalanceRoutes(controllers.balance);
+  
+  console.log('🔧 Auth routes created:', typeof authRoutes);
+  console.log('🔧 Betting routes created:', typeof bettingRoutes);
+  console.log('🔧 Balance routes created:', typeof balanceRoutes);
+  
+  router.use('/auth', authRoutes);
+  router.use('/bets', bettingRoutes);
+  router.use('/balance', balanceRoutes);
+  router.use('/transactions', balanceRoutes);
+
+  // Внутренние маршруты для тестирования (временно отключены)
+  // router.use('/internal', createInternalRoutes(
+  //   controllers.auth,
+  //   controllers.betting,
+  //   controllers.balance
+  // ));
+
+  console.log('🔧 All routes mounted on router');
+  return router;
+}
+
+// Экспорт отдельных функций создания маршрутов
+export {
+  createAuthRoutes,
+  createBettingRoutes,
+  createBalanceRoutes
+}; 

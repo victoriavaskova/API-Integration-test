@@ -1,18 +1,13 @@
 import { Decimal } from '@prisma/client/runtime/library';
+import { BetStatus as PrismaBetStatus, TransactionType as PrismaTransactionType } from '@prisma/client';
 
-// Enum типы
-export enum BetStatus {
-  PENDING = 'PENDING',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED'
-}
+// Экспорт enum типов из Prisma
+export const BetStatus = PrismaBetStatus;
+export const TransactionType = PrismaTransactionType;
 
-export enum TransactionType {
-  DEPOSIT = 'DEPOSIT',
-  WITHDRAWAL = 'WITHDRAWAL',
-  BET = 'BET',
-  WIN = 'WIN'
-}
+// Типы для TypeScript
+export type BetStatus = PrismaBetStatus;
+export type TransactionType = PrismaTransactionType;
 
 // Основные типы моделей
 export interface User {
