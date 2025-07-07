@@ -12,35 +12,36 @@
    # Server Configuration
    PORT=3003
    NODE_ENV=development
-   CLIENT_URL=http://localhost:5173
+   CLIENT_URL=http://localhost:3000
 
    # Database Configuration
-   DATABASE_URL="postgresql://postgres:password@localhost:5432/betting_integration"
+   DATABASE_URL="postgresql://postgres:your_password_here@localhost:5432/betting_integration"
 
    # External API Configuration
    EXTERNAL_API_URL=https://bets.tgapps.cloud/api
    
    # Test User Credentials (for development/testing only)
-   # Set these to real values in your .env file
+   # IMPORTANT: Replace these with real values from API administrator
+   # These are PLACEHOLDER values and will NOT work with the real API
    TEST_USER_1_ID=1
-   TEST_USER_1_SECRET=your_test_user_1_secret_here
+   TEST_USER_1_SECRET=get_real_secret_from_api_admin
    TEST_USER_2_ID=2
-   TEST_USER_2_SECRET=your_test_user_2_secret_here
+   TEST_USER_2_SECRET=get_real_secret_from_api_admin
    TEST_USER_3_ID=3
-   TEST_USER_3_SECRET=your_test_user_3_secret_here
+   TEST_USER_3_SECRET=get_real_secret_from_api_admin
    TEST_USER_4_ID=4
-   TEST_USER_4_SECRET=your_test_user_4_secret_here
+   TEST_USER_4_SECRET=get_real_secret_from_api_admin
    TEST_USER_5_ID=5
-   TEST_USER_5_SECRET=your_test_user_5_secret_here
+   TEST_USER_5_SECRET=get_real_secret_from_api_admin
    ADMIN_USER_ID=99
-   ADMIN_USER_SECRET=your_admin_secret_here
+   ADMIN_USER_SECRET=get_real_admin_secret_from_api_admin
 
-   # JWT Configuration
-   JWT_SECRET=your-super-secret-jwt-key-here-change-in-production
+   # JWT Configuration - MUST be changed in production!
+   JWT_SECRET=your-super-secret-jwt-key-minimum-32-characters-change-in-production
    JWT_EXPIRES_IN=24h
 
-   # Admin Configuration
-   ADMIN_TOKEN=admin-token-for-internal-endpoints
+   # Admin Configuration - MUST be changed in production!
+   ADMIN_TOKEN=your-admin-token-minimum-32-characters-change-in-production
 
    # Logging
    LOG_LEVEL=info

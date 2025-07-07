@@ -107,7 +107,7 @@ export function createBalanceRoutes(balanceController: BalanceController): Route
    *                       type: number
    *                       example: 2
    */
-  router.get('/transactions', authenticateUser, balanceController.getBalanceHistory);
+  router.get('/transactions', authenticateUser, balanceController.getTransactions);
 
   return router;
 } 

@@ -7,7 +7,7 @@ import type {
   UserWithRelations,
   CreateExternalApiAccountData 
 } from '../types/database.js';
-import type { BaseRepository, FindManyOptions, PaginatedResult } from './base.repository.js';
+import type { BaseRepository, FindManyOptions } from './base.repository.js';
 
 export interface UserRepository extends BaseRepository<User, CreateUserData, UpdateUserData> {
   findByUsername(username: string): Promise<User | null>;

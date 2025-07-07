@@ -59,7 +59,7 @@ export interface ServiceOptions {
 /**
  * Базовый класс для всех сервисов
  */
-export abstract class BaseServiceImpl implements BaseService {
+export abstract class BaseServiceImpl {
   protected repositories: Repositories;
   protected externalApiClient: ExternalApiClient;
 
@@ -121,13 +121,14 @@ export abstract class BaseServiceImpl implements BaseService {
    * Обрабатывает ошибки и преобразует их в ServiceError
    */
   protected handleError(error: any, operation: string): ServiceError {
-    if (error instanceof ServiceError) {
-      return error;
+    // Проверяем, соответствует ли ошибка интерфейсу ServiceError
+    if (error && typeof error === 'object' && 'code' in error && 'message' in error) {
+      return error as ServiceError;
     }
 
     return {
       code: 'SERVICE_ERROR',
-      message: `Failed to ${operation}: ${error.message || 'Unknown error'}`,
+      message: `Failed to ${operation}: ${error?.message || 'Unknown error'}`,
       originalError: error instanceof Error ? error : new Error(String(error))
     };
   }

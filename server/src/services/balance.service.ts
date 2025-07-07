@@ -1,6 +1,7 @@
 import { Decimal } from '@prisma/client/runtime/library';
 import { BaseServiceImpl, type ServiceResult, SERVICE_ERROR_CODES } from './base.service.js';
-import type { UserBalance, TransactionType } from '../types/database.js';
+// import type { UserBalance } from '../types/database.js';
+import { TransactionType } from '../types/database.js';
 
 export interface BalanceService {
   getCurrentBalance(userId: number): Promise<ServiceResult<BalanceResult>>;
@@ -9,6 +10,7 @@ export interface BalanceService {
   addFunds(userId: number, amount: number, description?: string): Promise<ServiceResult<TransactionResult>>;
   withdrawFunds(userId: number, amount: number, description?: string): Promise<ServiceResult<TransactionResult>>;
   getBalanceHistory(userId: number): Promise<ServiceResult<BalanceHistoryResult>>;
+  getTransactions(userId: number, page?: number, limit?: number): Promise<ServiceResult<TransactionsResult>>;
   checkBalanceConsistency(userId: number): Promise<ServiceResult<BalanceConsistencyResult>>;
 }
 
@@ -64,6 +66,26 @@ export interface BalanceConsistencyResult {
   recommendations: string[];
 }
 
+export interface TransactionsResult {
+  transactions: TransactionItem[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+}
+
+export interface TransactionItem {
+  id: string;
+  type: string;
+  amount: number;
+  balance_before: number;
+  balance_after: number;
+  description: string;
+  created_at: string;
+}
+
 export class BalanceServiceImpl extends BaseServiceImpl implements BalanceService {
 
   /**
@@ -91,7 +113,7 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
       const result: BalanceResult = {
         balance: internalBalance,
         external_balance: externalBalance,
-        last_updated: (balance.lastCheckedAt || balance.updatedAt).toISOString(),
+        last_updated: (balance.lastCheckedAt || new Date()).toISOString(),
         is_synced: isSynced,
         difference
       };
@@ -166,7 +188,7 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
       const balance = await this.repositories.balance.create({
         userId,
         balance: new Decimal(initialAmount),
-        externalBalance: externalBalance ? new Decimal(externalBalance) : null
+        externalBalance: externalBalance ? new Decimal(externalBalance) : undefined
       });
 
       // Создаем начальную транзакцию
@@ -255,7 +277,7 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
         return this.createErrorResult(
           SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
           'Failed to get balance from external API',
-          { external_error: balanceResult.error }
+          { external_error: (balanceResult as any).error }
         );
       }
 
@@ -358,7 +380,7 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
     } catch (error) {
       await this.logOperation('add_funds_error', userId, { 
         amount, 
-        error: error.message 
+        error: error instanceof Error ? error.message : String(error)
       });
       return this.createErrorResult(
         SERVICE_ERROR_CODES.INTERNAL_ERROR,
@@ -440,7 +462,7 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
     } catch (error) {
       await this.logOperation('withdraw_funds_error', userId, { 
         amount, 
-        error: error.message 
+        error: error instanceof Error ? error.message : String(error)
       });
       return this.createErrorResult(
         SERVICE_ERROR_CODES.INTERNAL_ERROR,
@@ -494,6 +516,89 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
         { userId },
         error
       );
+    }
+  }
+
+  /**
+   * Получение транзакций пользователя
+   */
+  async getTransactions(userId: number, page: number = 1, limit: number = 10): Promise<ServiceResult<TransactionsResult>> {
+    try {
+      await this.logOperation('get_transactions', userId, { page, limit });
+
+      // Валидация пагинации
+      if (page < 1 || limit < 1 || limit > 50) {
+        return this.createErrorResult(
+          SERVICE_ERROR_CODES.VALIDATION_ERROR,
+          'Invalid pagination parameters',
+          { page, limit, constraints: 'page >= 1, 1 <= limit <= 50' }
+        );
+      }
+
+      const paginatedResult = await this.repositories.transaction.findByUserIdPaginated(userId, page, limit);
+      
+      const transactions: TransactionItem[] = paginatedResult.data.map(transaction => ({
+        id: transaction.id.toString(),
+        type: this.mapTransactionType(transaction.type),
+        amount: transaction.type === TransactionType.BET || transaction.type === TransactionType.WITHDRAWAL 
+          ? -Math.abs(Number(transaction.amount)) 
+          : Number(transaction.amount),
+        balance_before: Number(transaction.balanceBefore),
+        balance_after: Number(transaction.balanceAfter),
+        description: transaction.description || this.getTransactionDescription(transaction.type, transaction.betId || undefined),
+        created_at: transaction.createdAt.toISOString()
+      }));
+
+      const result: TransactionsResult = {
+        transactions,
+        pagination: paginatedResult.pagination
+      };
+
+      return this.createSuccessResult(result);
+
+    } catch (error) {
+      return this.createErrorResult(
+        SERVICE_ERROR_CODES.INTERNAL_ERROR,
+        'Failed to get transactions',
+        { userId, page, limit },
+        error
+      );
+    }
+  }
+
+  /**
+   * Мапинг типов транзакций для API ответа
+   */
+  private mapTransactionType(type: TransactionType): string {
+    switch (type) {
+      case TransactionType.BET:
+        return 'bet_place';
+      case TransactionType.WIN:
+        return 'bet_win';
+      case TransactionType.DEPOSIT:
+        return 'deposit';
+      case TransactionType.WITHDRAWAL:
+        return 'withdrawal';
+      default:
+        return String(type).toLowerCase();
+    }
+  }
+
+  /**
+   * Получение описания транзакции
+   */
+  private getTransactionDescription(type: TransactionType, betId?: number): string {
+    switch (type) {
+      case TransactionType.BET:
+        return betId ? `Bet placement #${betId}` : 'Bet placement';
+      case TransactionType.WIN:
+        return betId ? `Win amount for bet #${betId}` : 'Bet win';
+      case TransactionType.DEPOSIT:
+        return 'Deposit';
+      case TransactionType.WITHDRAWAL:
+        return 'Withdrawal';
+      default:
+        return 'Transaction';
     }
   }
 

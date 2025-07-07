@@ -1,69 +1,154 @@
-# React + TypeScript + Vite
+# Betting System Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React-based frontend for the Betting System API integration project.
 
-Currently, two official plugins are available:
+## Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+This is a test betting system client built with React and TypeScript, using Feature-Sliced Design (FSD) architecture. It provides a clean interface for:
 
-## Expanding the ESLint configuration
+- User authentication
+- Placing bets with 50/50 chance and 2x payout
+- Viewing betting history
+- Monitoring account balance and transactions
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Features
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- 🎲 **Simple Betting**: Place bets from $1 to $5
+- 📊 **Dashboard**: Overview of balance and betting stats
+- 🎯 **Bet History**: View all your bets and results
+- 💰 **Transaction History**: Track all balance changes
+- 📱 **Responsive Design**: Works on desktop and mobile
+- 🔒 **JWT Authentication**: Secure login system
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+## Architecture
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+The project follows Feature-Sliced Design (FSD) methodology:
+
+```
+src/
+├── app/           # App configuration and routing
+├── pages/         # Page components (Login, Dashboard, Bets, Transactions)
+├── widgets/       # Composite UI blocks (Layout)
+├── features/      # Business logic features
+├── entities/      # Business entities
+└── shared/        # Reusable modules (API, hooks, styles)
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Tech Stack
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- **Framework**: React 18 with TypeScript
+- **Build Tool**: Vite
+- **Routing**: React Router v6
+- **HTTP Client**: Axios
+- **State Management**: React Hooks (useAuth, useBalance, useBetting)
+- **Styling**: CSS Variables with utility classes
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Quick Start
+
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Start development server**:
+   ```bash
+   npm run dev
+   ```
+
+3. **Open in browser**:
+   Navigate to `http://localhost:3000`
+
+## Available Users
+
+The system comes with pre-configured test users:
+- `user1`
+- `user2` 
+- `user3`
+- `user4`
+- `user5`
+
+Use any of these usernames to log in (no password required for testing).
+
+## Game Rules
+
+- **Bet Range**: $1 to $5 per bet
+- **Odds**: 50/50 chance to win
+- **Payout**: 2x your bet amount on win
+- **Loss**: You lose your bet amount
+
+### Example
+- Bet: $3
+- Win: Receive $6 (net profit: +$3)
+- Loss: Lose $3 (net profit: -$3)
+
+## API Integration
+
+The client integrates with a Node.js/Express backend that uses HMAC SHA-512 authentication to communicate with an external betting API.
+
+### API Endpoints Used
+- `POST /api/auth/login` - User authentication
+- `GET /api/balance` - Get current balance
+- `GET /api/bets` - Get betting history
+- `POST /api/bets` - Place a new bet
+- `GET /api/bets/recommended` - Get recommended bet amount
+- `GET /api/transactions` - Get transaction history
+
+## Project Structure
+
+### Key Components
+
+- **App**: Main application with routing and auth protection
+- **Layout**: Shared layout with navigation and header
+- **LoginPage**: Authentication form
+- **DashboardPage**: Main betting interface and stats
+- **BetsPage**: Betting history and statistics
+- **TransactionsPage**: Transaction history and balance tracking
+
+### Custom Hooks
+
+- **useAuth**: Manages authentication state and login/logout
+- **useBalance**: Handles balance and transaction data
+- **useBetting**: Manages betting operations and history
+
+## Development
+
+### Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+
+### Code Style
+
+The project follows React and TypeScript best practices:
+- Functional components with hooks
+- TypeScript for type safety
+- Clean component structure
+- Proper error handling
+- Loading states and user feedback
+
+## Security Notes
+
+- JWT tokens are stored in localStorage
+- No sensitive data is stored client-side
+- All API communication goes through the backend proxy
+- HMAC authentication is handled server-side
+
+## Browser Support
+
+- Modern browsers (Chrome, Firefox, Safari, Edge)
+- ES2020+ features required
+- No IE support
+
+## Contributing
+
+1. Follow the FSD architecture patterns
+2. Use TypeScript for all new code
+3. Maintain component purity and reusability
+4. Add proper error handling and loading states
+5. Test your changes across different user scenarios
+
+## License
+
+This is a test project for demonstration purposes. 

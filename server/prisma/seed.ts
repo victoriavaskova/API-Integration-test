@@ -10,10 +10,10 @@ const prisma = new PrismaClient();
 // Валидация переменных окружения
 function validateEnvironmentVariables(): void {
   const requiredVars = [
-    'TEST_USER_1_ID', 'TEST_USER_1_SECRET',
-    'TEST_USER_2_ID', 'TEST_USER_2_SECRET', 
-    'TEST_USER_3_ID', 'TEST_USER_3_SECRET',
-    'ADMIN_USER_ID', 'ADMIN_USER_SECRET'
+    'EXTERNAL_USER_ID', 
+    'EXTERNAL_SECRET_KEY',
+    'ADMIN_USER_ID', 
+    'ADMIN_USER_SECRET'
   ];
 
   const missingVars = requiredVars.filter(varName => !process.env[varName]);
@@ -25,6 +25,11 @@ function validateEnvironmentVariables(): void {
     });
     console.error('');
     console.error('Please set these variables in your .env file');
+    console.error('Required format:');
+    console.error('EXTERNAL_USER_ID=5');
+    console.error('EXTERNAL_SECRET_KEY=your_real_secret_key');
+    console.error('ADMIN_USER_ID=99');
+    console.error('ADMIN_USER_SECRET=admin_secret_key');
     process.exit(1);
   }
 }
@@ -35,25 +40,43 @@ async function main(): Promise<void> {
   // Проверяем переменные окружения
   validateEnvironmentVariables();
 
-  // Создаем тестовых пользователей с данными из переменных окружения
+  // Один внешний аккаунт для всех пользователей
+  const SHARED_EXTERNAL_ACCOUNT = {
+    externalUserId: process.env.EXTERNAL_USER_ID!,
+    externalSecretKey: process.env.EXTERNAL_SECRET_KEY!
+  };
+
+  // Создать 5 пользователей, все используют один внешний аккаунт
   const users = [
     {
       username: 'user1',
       email: 'user1@example.com',
-      externalUserId: process.env.TEST_USER_1_ID!,
-      externalSecretKey: process.env.TEST_USER_1_SECRET!
+      externalUserId: SHARED_EXTERNAL_ACCOUNT.externalUserId,
+      externalSecretKey: SHARED_EXTERNAL_ACCOUNT.externalSecretKey
     },
     {
       username: 'user2',
       email: 'user2@example.com',
-      externalUserId: process.env.TEST_USER_2_ID!,
-      externalSecretKey: process.env.TEST_USER_2_SECRET!
+      externalUserId: SHARED_EXTERNAL_ACCOUNT.externalUserId,
+      externalSecretKey: SHARED_EXTERNAL_ACCOUNT.externalSecretKey
     },
     {
       username: 'user3',
       email: 'user3@example.com',
-      externalUserId: process.env.TEST_USER_3_ID!,
-      externalSecretKey: process.env.TEST_USER_3_SECRET!
+      externalUserId: SHARED_EXTERNAL_ACCOUNT.externalUserId,
+      externalSecretKey: SHARED_EXTERNAL_ACCOUNT.externalSecretKey
+    },
+    {
+      username: 'user4',
+      email: 'user4@example.com',
+      externalUserId: SHARED_EXTERNAL_ACCOUNT.externalUserId,
+      externalSecretKey: SHARED_EXTERNAL_ACCOUNT.externalSecretKey
+    },
+    {
+      username: 'user5',
+      email: 'user5@example.com',
+      externalUserId: SHARED_EXTERNAL_ACCOUNT.externalUserId,
+      externalSecretKey: SHARED_EXTERNAL_ACCOUNT.externalSecretKey
     },
     {
       username: 'admin',
@@ -81,25 +104,34 @@ async function main(): Promise<void> {
 
     console.log(`✅ Created/Updated user: ${user.username} (ID: ${user.id})`);
 
-    // Создаем внешний аккаунт для пользователя
-    const externalAccount = await prisma.externalApiAccount.upsert({
-      where: {
-        userId_externalUserId: {
-          userId: user.id,
-          externalUserId: userData.externalUserId
-        }
-      },
-      update: {
-        externalSecretKey: userData.externalSecretKey,
-        isActive: true
-      },
-      create: {
-        userId: user.id,
-        externalUserId: userData.externalUserId,
-        externalSecretKey: userData.externalSecretKey,
-        isActive: true
-      }
+    // Создаем внешний аккаунт для пользователя  
+    // Проверяем, есть ли уже аккаунт для этого пользователя
+    const existingAccount = await prisma.externalApiAccount.findFirst({
+      where: { userId: user.id }
     });
+
+    let externalAccount;
+    if (existingAccount) {
+      // Обновляем существующий аккаунт
+      externalAccount = await prisma.externalApiAccount.update({
+        where: { id: existingAccount.id },
+        data: {
+          externalUserId: userData.externalUserId,
+          externalSecretKey: userData.externalSecretKey,
+          isActive: true
+        }
+      });
+    } else {
+      // Создаем новый аккаунт
+      externalAccount = await prisma.externalApiAccount.create({
+        data: {
+          userId: user.id,
+          externalUserId: userData.externalUserId,
+          externalSecretKey: userData.externalSecretKey,
+          isActive: true
+        }
+      });
+    }
 
     console.log(`🔑 Created/Updated external account for user ${user.username}`);
 
@@ -256,6 +288,11 @@ async function main(): Promise<void> {
   console.log('🎯 Test credentials:');
   console.log('Username: user1, user2, user3, user4, user5, admin');
   console.log('Initial balance: 1000 for all users');
+  console.log('');
+  console.log('🔗 External API Integration:');
+  console.log(`External User ID: ${process.env.EXTERNAL_USER_ID}`);
+  console.log('All internal users (user1-user5) share this external account');
+  console.log('Admin has separate external account for testing');
   console.log('');
   console.log('🚀 You can now start the server and test the API!');
 }

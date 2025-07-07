@@ -7,19 +7,22 @@
     "test": "tests"
   },
   "scripts": {
-    "dev": "tsx --watch --env-file .env src/app.ts",
-    "start": "node --env-file .env dist/app.js",
     "build": "tsc",
-    "type-check": "tsc --noEmit",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "build:run": "tsc && node dist/app.js",
+    "start": "node --env-file .env dist/app.js",
+    "dev": "nodemon --exec \"npm run build:run\" src/app.ts",
+    "dev:simple": "node --loader ts-node/esm src/app.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix"
   },
   "keywords": [
     "express",

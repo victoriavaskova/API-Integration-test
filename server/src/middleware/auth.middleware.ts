@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import type { AuthService, TokenPayload } from '../services/auth.service.js';
+import type { AuthService } from '../services/auth.service.js';
 
 /**
  * Расширение Request для добавления информации о пользователе
@@ -314,7 +314,8 @@ export function authenticateUser(req: Request, res: Response, next: NextFunction
     return;
   }
 
-  return createAuthMiddleware(_globalAuthService)(req, res, next);
+  const middleware = createAuthMiddleware(_globalAuthService);
+  middleware(req, res, next);
 }
 
 /**
@@ -333,5 +334,6 @@ export function authenticateAdmin(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  return createAuthMiddleware(_globalAuthService, { adminOnly: true })(req, res, next);
+  const middleware = createAuthMiddleware(_globalAuthService, { adminOnly: true });
+  middleware(req, res, next);
 } 

@@ -254,14 +254,10 @@ export function createInternalRoutes(
    *             type: object
    *             required:
    *               - user_id
-   *               - expected_balance
    *             properties:
    *               user_id:
    *                 type: string
    *                 example: "5"
-   *               expected_balance:
-   *                 type: number
-   *                 example: 1006
    *     responses:
    *       200:
    *         description: Результат проверки баланса
@@ -276,15 +272,16 @@ export function createInternalRoutes(
    *                 external_response:
    *                   type: object
    *                   properties:
-   *                     is_correct:
-   *                       type: boolean
-   *                       example: true
    *                     balance:
    *                       type: number
    *                       example: 1006
-   *                     message:
+   *                     status:
    *                       type: string
-   *                       example: "Balance is correct"
+   *                       example: "ok"
+   *                     timestamp:
+   *                       type: string
+   *                       format: date-time
+   *                       example: "2023-06-15T12:30:00Z"
    */
   router.post('/check-balance', authenticateAdmin, balanceController.testExternalCheckBalance);
 

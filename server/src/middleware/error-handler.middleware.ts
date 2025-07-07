@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import type { ServiceError } from '../services/base.service.js';
+// import type { ServiceError } from '../services/base.service.js';
 
 /**
  * Интерфейс для стандартизированного ответа с ошибкой

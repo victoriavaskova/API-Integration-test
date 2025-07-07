@@ -1,138 +1,183 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Container, Row, Col, Card, Form, Button, Navbar, Nav, ListGroup, Badge } from 'react-bootstrap';
+import React, { useState } from 'react';
+import { Layout } from '@widgets/Layout';
+import { useAuth } from '@shared/hooks/useAuth';
+import { useBalance } from '@shared/hooks/useBalance';
+import { useBetting } from '@shared/hooks/useBetting';
 
-export const DashboardPage = () => {
-  const [betAmount, setBetAmount] = useState('');
-  const [selectedOdds, setSelectedOdds] = useState('');
+export const DashboardPage: React.FC = () => {
+  const { user } = useAuth();
+  const { balance, refreshBalance } = useBalance();
+  const { 
+    recommendedAmount, 
+    placeBet, 
+    placingBet, 
+    error, 
+    clearError, 
+    stats,
+    refreshBets 
+  } = useBetting();
+  
+  const [customAmount, setCustomAmount] = useState<number>(recommendedAmount || 1);
+  const [useRecommended, setUseRecommended] = useState(true);
 
-  const handlePlaceBet = async (e: React.FormEvent) => {
-    e.preventDefault();
+  React.useEffect(() => {
+    if (recommendedAmount > 0) {
+      setCustomAmount(recommendedAmount);
+    }
+  }, [recommendedAmount]);
+
+  const handlePlaceBet = async () => {
+    const amount = useRecommended ? recommendedAmount : customAmount;
     
-    // TODO: Implement actual bet placement
-    console.log('Placing bet:', { betAmount, selectedOdds });
-    
-    // Reset form
-    setBetAmount('');
-    setSelectedOdds('');
+    if (amount < 1 || amount > 5) {
+      return;
+    }
+
+    if (amount > balance) {
+      return;
+    }
+
+    clearError();
+
+    try {
+      await placeBet(amount);
+      // Refresh data after successful bet
+      await Promise.all([refreshBalance(), refreshBets()]);
+    } catch (error) {
+      // Error is handled by useBetting hook
+    }
   };
 
+  const betAmount = useRecommended ? recommendedAmount : customAmount;
+  const canPlaceBet = betAmount >= 1 && betAmount <= 5 && betAmount <= balance && !placingBet;
+
   return (
-    <div className="min-vh-100" style={{backgroundColor: '#f8f9fa'}}>
-      {/* Header */}
-      <Navbar bg="white" expand="lg" className="shadow-sm">
-        <Container>
-          <Navbar.Brand className="fw-bold">Панель управления ставками</Navbar.Brand>
-          <Nav className="ms-auto">
-            <Nav.Link as={Link} to="/bets">Мои ставки</Nav.Link>
-            <Nav.Link as={Link} to="/transactions">Транзакции</Nav.Link>
-            <Nav.Link as={Link} to="/login" className="text-danger">Выход</Nav.Link>
-          </Nav>
-        </Container>
-      </Navbar>
+    <Layout>
+      <div className="grid gap-2">
+        {/* Welcome section */}
+        <div className="card">
+          <h2>Welcome to Betting System! 🎲</h2>
+          <p className="text-secondary">
+            This is a test betting system with 50/50 chance and 2x payout on win.
+            Place your bets wisely!
+          </p>
+        </div>
 
-      <Container className="py-4">
-        <Row className="g-4">
-          {/* Balance Card */}
-          <Col md={6}>
-            <Card className="h-100">
-              <Card.Body>
-                <div className="d-flex align-items-center">
-                  <div className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" 
-                       style={{width: '48px', height: '48px'}}>
-                    <strong>₽</strong>
-                  </div>
-                  <div>
-                    <Card.Subtitle className="text-muted">Текущий баланс</Card.Subtitle>
-                    <Card.Title className="mb-0">1,250.00 ₽</Card.Title>
-                  </div>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
+        {/* Stats overview */}
+        <div className="grid grid-2 gap-2">
+          <div className="card">
+            <h3>Your Balance</h3>
+            <div className="text-success" style={{ fontSize: '2rem', fontWeight: 'bold' }}>
+              ${balance}
+            </div>
+          </div>
+          
+          <div className="card">
+            <h3>Betting Stats</h3>
+            <div className="text-secondary">
+              <p>Total Bets: {stats.totalBets}</p>
+              <p>Completed: {stats.completedBets}</p>
+              <p>Pending: {stats.pendingBets}</p>
+              <p>Total Winnings: ${stats.totalWinnings}</p>
+            </div>
+          </div>
+        </div>
 
-          {/* Place Bet Form */}
-          <Col md={6}>
-            <Card className="h-100">
-              <Card.Body>
-                <Card.Title>Сделать ставку</Card.Title>
-                <Form onSubmit={handlePlaceBet}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Сумма ставки</Form.Label>
-                    <Form.Control
-                      type="number"
-                      placeholder="100"
-                      value={betAmount}
-                      onChange={(e) => setBetAmount(e.target.value)}
-                      required
-                    />
-                  </Form.Group>
-                  
-                  <Form.Group className="mb-3">
-                    <Form.Label>Коэффициент</Form.Label>
-                    <Form.Select
-                      value={selectedOdds}
-                      onChange={(e) => setSelectedOdds(e.target.value)}
-                      required
-                    >
-                      <option value="">Выберите коэффициент</option>
-                      <option value="1.5">1.5</option>
-                      <option value="2.0">2.0</option>
-                      <option value="2.5">2.5</option>
-                      <option value="3.0">3.0</option>
-                    </Form.Select>
-                  </Form.Group>
-                  
-                  <Button variant="primary" type="submit" className="w-100">
-                    Сделать ставку
-                  </Button>
-                </Form>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
+        {/* Betting section */}
+        <div className="card">
+          <h3>Place a Bet</h3>
+          
+          <div className="mb-2">
+            <label className="flex gap-1" style={{ alignItems: 'center', marginBottom: '1rem' }}>
+              <input
+                type="checkbox"
+                checked={useRecommended}
+                onChange={(e) => setUseRecommended(e.target.checked)}
+              />
+              Use recommended amount (${recommendedAmount})
+            </label>
+            
+            {!useRecommended && (
+              <div className="form-group">
+                <label htmlFor="betAmount" className="form-label">
+                  Custom Bet Amount (1-5)
+                </label>
+                <input
+                  type="number"
+                  id="betAmount"
+                  className="form-input"
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(Number(e.target.value))}
+                  min={1}
+                  max={5}
+                  disabled={placingBet}
+                />
+              </div>
+            )}
+          </div>
 
-        {/* Recent Bets */}
-        <Row className="mt-4">
-          <Col>
-            <Card>
-              <Card.Header>
-                <Card.Title className="mb-0">Последние ставки</Card.Title>
-                <Card.Subtitle className="text-muted">Ваши недавние ставки и их статус</Card.Subtitle>
-              </Card.Header>
-              <ListGroup variant="flush">
-                <ListGroup.Item className="d-flex justify-content-between align-items-center">
-                  <div className="d-flex align-items-center">
-                    <div className="bg-success text-white rounded-circle d-flex align-items-center justify-content-center me-3" 
-                         style={{width: '40px', height: '40px'}}>
-                      <strong>W</strong>
-                    </div>
-                    <div>
-                      <div className="fw-semibold">Ставка на коэффициент 2.0</div>
-                      <small className="text-muted">Сумма: 100 ₽ • Выигрыш: 200 ₽</small>
-                    </div>
-                  </div>
-                  <Badge bg="success">Выиграна</Badge>
-                </ListGroup.Item>
-                
-                <ListGroup.Item className="d-flex justify-content-between align-items-center">
-                  <div className="d-flex align-items-center">
-                    <div className="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" 
-                         style={{width: '40px', height: '40px'}}>
-                      <strong>P</strong>
-                    </div>
-                    <div>
-                      <div className="fw-semibold">Ставка на коэффициент 1.5</div>
-                      <small className="text-muted">Сумма: 200 ₽ • Потенциальный выигрыш: 300 ₽</small>
-                    </div>
-                  </div>
-                  <Badge bg="warning">В ожидании</Badge>
-                </ListGroup.Item>
-              </ListGroup>
-            </Card>
-          </Col>
-        </Row>
-      </Container>
-    </div>
+          {error && (
+            <div className="card" style={{ backgroundColor: 'var(--color-danger)', marginBottom: '1rem' }}>
+              <p style={{ margin: 0, color: 'white' }}>{error}</p>
+            </div>
+          )}
+
+          <div className="flex gap-1" style={{ alignItems: 'center' }}>
+            <button
+              onClick={handlePlaceBet}
+              className="btn btn-success"
+              disabled={!canPlaceBet}
+              style={{ minWidth: '120px' }}
+            >
+              {placingBet ? (
+                <>
+                  <div className="spinner" style={{ width: '16px', height: '16px', marginRight: '8px' }}></div>
+                  Placing...
+                </>
+              ) : (
+                `Bet $${betAmount}`
+              )}
+            </button>
+            
+            <div className="text-secondary">
+              {betAmount > balance && (
+                <span className="text-danger">Insufficient balance!</span>
+              )}
+              {(betAmount < 1 || betAmount > 5) && (
+                <span className="text-danger">Bet amount must be between $1 and $5</span>
+              )}
+              {canPlaceBet && (
+                <span>50% chance to win ${betAmount * 2}</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick info */}
+        <div className="card">
+          <h3>How it works</h3>
+          <div className="grid grid-2 gap-2">
+            <div>
+              <h4>🎯 Game Rules</h4>
+              <ul style={{ textAlign: 'left', paddingLeft: '1.5rem' }}>
+                <li>Bet amounts: $1 to $5</li>
+                <li>50/50 chance to win</li>
+                <li>2x payout on win</li>
+                <li>Lose your bet on loss</li>
+              </ul>
+            </div>
+            <div>
+              <h4>📊 Example</h4>
+              <ul style={{ textAlign: 'left', paddingLeft: '1.5rem' }}>
+                <li>Bet: $3</li>
+                <li>Win: Get $6 (double)</li>
+                <li>Loss: Lose $3</li>
+                <li>Net on win: +$3</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
   );
-};
+}; 

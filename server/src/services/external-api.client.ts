@@ -10,7 +10,6 @@ import type {
   RecommendedBetResponse,
   WinRequest,
   WinResponse,
-  CheckBalanceRequest,
   CheckBalanceResponse,
   ExternalApiError,
   ExternalApiResult,
@@ -94,13 +93,11 @@ export class ExternalApiClient {
   /**
    * Проверка баланса
    */
-  async checkBalance(externalUserId: string, secretKey: string, expectedBalance: number): Promise<ExternalApiResult<CheckBalanceResponse>> {
-    const requestBody: CheckBalanceRequest = { expected_balance: expectedBalance };
-    
+  async checkBalance(externalUserId: string, secretKey: string): Promise<ExternalApiResult<CheckBalanceResponse>> {
     return await this.makeRequest(
-      'POST',
+      'GET',
       'checkBalance',
-      requestBody,
+      undefined,
       externalUserId,
       secretKey,
       'balance'
@@ -240,8 +237,8 @@ export class ExternalApiClient {
           };
         } else {
           const error: ExternalApiError = {
-            error: responseBody.error || 'Unknown error',
-            message: responseBody.message || 'An error occurred',
+            error: (responseBody as any)?.error || 'Unknown error',
+            message: (responseBody as any)?.message || 'An error occurred',
             statusCode: response.status
           };
 

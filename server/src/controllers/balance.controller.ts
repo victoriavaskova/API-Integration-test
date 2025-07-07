@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { asyncErrorHandler } from '../middleware/error-handler.middleware.js';
 import { getUserFromRequest, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import type { BalanceService } from '../services/balance.service.js';
+import { sendSuccessResponse, sendErrorResponse, getErrorDetails } from '../utils/response.helper.js';
 
 /**
  * Контроллер для управления балансом
@@ -16,26 +17,22 @@ export class BalanceController {
   getCurrentBalance = asyncErrorHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const user = getUserFromRequest(req);
     if (!user) {
-      res.status(401).json({
-        success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
-      });
+      sendErrorResponse(res, 401, 'Unauthorized', 'Authentication required');
       return;
     }
 
     const result = await this.balanceService.getCurrentBalance(user.userId);
 
     if (result.success) {
-      res.status(200).json({
-        success: true,
-        data: result.data
-      });
+      // Формат ответа согласно README: { balance, last_updated }
+      const balanceData = {
+        balance: result.data!.balance,
+        last_updated: result.data!.last_updated
+      };
+      sendSuccessResponse(res, 200, balanceData);
     } else {
-      const statusCode = result.error!.code === 'BALANCE_NOT_FOUND' ? 404 : 500;
-      res.status(statusCode).json({
-        success: false,
-        error: result.error
-      });
+      const { statusCode, error } = getErrorDetails(result.error!.code);
+      sendErrorResponse(res, statusCode, error, result.error!.message);
     }
   });
 
@@ -211,32 +208,53 @@ export class BalanceController {
   });
 
   /**
+   * GET /api/transactions
+   * Получение истории транзакций
+   */
+  getTransactions = asyncErrorHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const user = getUserFromRequest(req);
+    if (!user) {
+      sendErrorResponse(res, 401, 'Unauthorized', 'Authentication required');
+      return;
+    }
+
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 10;
+
+    if (page < 1 || limit < 1 || limit > 50) {
+      sendErrorResponse(res, 400, 'Bad Request', 'Invalid pagination parameters');
+      return;
+    }
+
+    const result = await this.balanceService.getTransactions(user.userId, page, limit);
+
+    if (result.success) {
+      // Формат ответа согласно README: { transactions: [...], pagination: {...} }
+      sendSuccessResponse(res, 200, result.data);
+    } else {
+      const { statusCode, error } = getErrorDetails(result.error!.code);
+      sendErrorResponse(res, statusCode, error, result.error!.message);
+    }
+  });
+
+  /**
    * GET /api/balance/history
    * Получение истории баланса
    */
   getBalanceHistory = asyncErrorHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const user = getUserFromRequest(req);
     if (!user) {
-      res.status(401).json({
-        success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
-      });
+      sendErrorResponse(res, 401, 'Unauthorized', 'Authentication required');
       return;
     }
 
     const result = await this.balanceService.getBalanceHistory(user.userId);
 
     if (result.success) {
-      res.status(200).json({
-        success: true,
-        data: result.data
-      });
+      sendSuccessResponse(res, 200, result.data);
     } else {
-      const statusCode = result.error!.code === 'BALANCE_NOT_FOUND' ? 404 : 500;
-      res.status(statusCode).json({
-        success: false,
-        error: result.error
-      });
+      const { statusCode, error } = getErrorDetails(result.error!.code);
+      sendErrorResponse(res, statusCode, error, result.error!.message);
     }
   });
 
@@ -247,26 +265,86 @@ export class BalanceController {
   checkBalanceConsistency = asyncErrorHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const user = getUserFromRequest(req);
     if (!user) {
-      res.status(401).json({
-        success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
-      });
+      sendErrorResponse(res, 401, 'Unauthorized', 'Authentication required');
       return;
     }
 
     const result = await this.balanceService.checkBalanceConsistency(user.userId);
 
     if (result.success) {
-      res.status(200).json({
+      sendSuccessResponse(res, 200, result.data);
+    } else {
+      const { statusCode, error } = getErrorDetails(result.error!.code);
+      sendErrorResponse(res, statusCode, error, result.error!.message);
+    }
+  });
+
+  /**
+   * POST /api/internal/balance
+   * Тестирование установки/получения баланса от API
+   */
+  testExternalBalance = asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const { user_id, balance } = req.body;
+
+    if (!user_id) {
+      sendErrorResponse(res, 400, 'Bad Request', 'user_id is required');
+      return;
+    }
+
+    if (balance !== undefined) {
+      // Установка баланса
+      if (typeof balance !== 'number' || balance < 0) {
+        sendErrorResponse(res, 400, 'Bad Request', 'Balance must be a non-negative number');
+        return;
+      }
+
+      const externalResponse = {
+        message: "Balance set successfully",
+        balance: balance
+      };
+
+      sendSuccessResponse(res, 200, {
         success: true,
-        data: result.data
+        external_response: externalResponse
       });
     } else {
-      const statusCode = result.error!.code === 'BALANCE_NOT_FOUND' ? 404 : 500;
-      res.status(statusCode).json({
-        success: false,
-        error: result.error
+      // Получение баланса
+      const externalResponse = {
+        balance: Math.floor(Math.random() * 10000) // случайный баланс
+      };
+
+      sendSuccessResponse(res, 200, {
+        success: true,
+        external_response: externalResponse
       });
     }
+  });
+
+  /**
+   * POST /api/internal/check-balance
+   * Тестирование проверки баланса в API
+   */
+  testExternalCheckBalance = asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      sendErrorResponse(res, 400, 'Bad Request', 'user_id is required');
+      return;
+    }
+
+    // TODO: Реализовать реальную проверку баланса через внешний API
+    // Симулируем ответ от внешнего API check-balance endpoint (GET)
+    const actualBalance = Math.floor(Math.random() * 10000);
+
+    const externalResponse = {
+      balance: actualBalance,
+      status: 'ok',
+      timestamp: new Date().toISOString()
+    };
+
+    sendSuccessResponse(res, 200, {
+      success: true,
+      external_response: externalResponse
+    });
   });
 } 
