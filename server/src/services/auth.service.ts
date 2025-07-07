@@ -72,9 +72,13 @@ export class AuthServiceImpl extends BaseServiceImpl implements AuthService {
         username: user.username
       };
 
-      const token = jwt.sign(tokenPayload, this.config.jwtSecret, {
-        expiresIn: this.config.jwtExpiresIn
-      });
+      const token = jwt.sign(
+        tokenPayload, 
+        this.config.jwtSecret, 
+        {
+          expiresIn: this.config.jwtExpiresIn
+        } as jwt.SignOptions
+      );
 
       // Получаем время истечения токена
       const decoded = jwt.decode(token) as jwt.JwtPayload;
@@ -167,7 +171,12 @@ export class AuthServiceImpl extends BaseServiceImpl implements AuthService {
     try {
       const validationResult = await this.validateToken(token);
       if (!validationResult.success) {
-        return validationResult as ServiceResult<LoginResult>;
+        return this.createErrorResult(
+          SERVICE_ERROR_CODES.UNAUTHORIZED,
+          'Token validation failed',
+          {},
+          validationResult.error?.originalError
+        );
       }
 
       const payload = validationResult.data!;
@@ -186,9 +195,13 @@ export class AuthServiceImpl extends BaseServiceImpl implements AuthService {
         username: user.username
       };
 
-      const newToken = jwt.sign(newTokenPayload, this.config.jwtSecret, {
-        expiresIn: this.config.jwtExpiresIn
-      });
+      const newToken = jwt.sign(
+        newTokenPayload, 
+        this.config.jwtSecret, 
+        {
+          expiresIn: this.config.jwtExpiresIn
+        } as jwt.SignOptions
+      );
 
       const decoded = jwt.decode(newToken) as jwt.JwtPayload;
       const expiresIn = decoded.exp! - decoded.iat!;

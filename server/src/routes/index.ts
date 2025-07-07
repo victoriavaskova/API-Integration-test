@@ -3,7 +3,7 @@ import type { Controllers } from '../controllers/index.js';
 import { createAuthRoutes } from './auth.routes.js';
 import { createBettingRoutes } from './betting.routes.js';
 import { createBalanceRoutes } from './balance.routes.js';
-// import { createInternalRoutes } from './internal.routes.js';
+import { createInternalRoutes } from './internal.routes.js';
 
 /**
  * Создает и настраивает все маршруты API
@@ -46,14 +46,15 @@ export function createApiRoutes(controllers: Controllers): Router {
   router.use('/auth', authRoutes);
   router.use('/bets', bettingRoutes);
   router.use('/balance', balanceRoutes);
-  router.use('/transactions', balanceRoutes);
+  router.use('/', balanceRoutes); // для /api/transactions
 
-  // Внутренние маршруты для тестирования (временно отключены)
-  // router.use('/internal', createInternalRoutes(
-  //   controllers.auth,
-  //   controllers.betting,
-  //   controllers.balance
-  // ));
+  // Внутренние маршруты для тестирования
+  const internalRoutes = createInternalRoutes(
+    controllers.auth,
+    controllers.betting,
+    controllers.balance
+  );
+  router.use('/internal', internalRoutes);
 
   console.log('🔧 All routes mounted on router');
   return router;

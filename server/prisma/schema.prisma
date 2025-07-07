@@ -37,7 +37,9 @@ model ExternalApiAccount {
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, externalUserId])
+  // Убираем уникальность - несколько пользователей могут использовать один внешний аккаунт
+  @@index([userId])
+  @@index([externalUserId])
   @@map("external_api_accounts")
 }
 

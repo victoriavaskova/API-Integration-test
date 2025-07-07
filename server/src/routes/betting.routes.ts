@@ -52,6 +52,28 @@ export function createBettingRoutes(bettingController: BettingController): Route
 
   /**
    * @swagger
+   * /api/bets/recommended:
+   *   get:
+   *     summary: Получение рекомендуемой ставки
+   *     tags: [Bets]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Рекомендуемая ставка
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 recommended_amount:
+   *                   type: number
+   *                   example: 3
+   */
+  router.get('/recommended', authenticateUser, bettingController.getRecommendedBet);
+
+  /**
+   * @swagger
    * /api/bets/{id}:
    *   get:
    *     summary: Получение информации о конкретной ставке
@@ -157,28 +179,6 @@ export function createBettingRoutes(bettingController: BettingController): Route
    *                   example: "Invalid bet amount. Must be between 1 and 5."
    */
   router.post('/', authenticateUser, bettingController.placeBet);
-
-  /**
-   * @swagger
-   * /api/bets/recommended:
-   *   get:
-   *     summary: Получение рекомендуемой ставки
-   *     tags: [Bets]
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: Рекомендуемая ставка
-   *         content:
-   *           application/json:
-   *             schema:
-   *               type: object
-   *               properties:
-   *                 recommended_amount:
-   *                   type: number
-   *                   example: 3
-   */
-  router.get('/recommended', authenticateUser, bettingController.getRecommendedBet);
 
   return router;
 } 

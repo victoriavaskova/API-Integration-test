@@ -1,132 +1,122 @@
-import { useState, useCallback } from 'react';
-import { apiClient, Bet, BetRequest } from '../api/api-client';
-
-interface BettingState {
-  bets: Bet[];
-  isLoading: boolean;
-  error: string | null;
-  placingBet: boolean;
-  recommendedAmount: number | null;
-  loadingRecommended: boolean;
-}
+import { useState, useEffect } from 'react';
+import { apiClient } from '@shared/api/client';
+import type { Bet, BetsResponse, RecommendedBetResponse, PlaceBetRequest } from '@shared/api/types';
 
 export const useBetting = () => {
-  const [bettingState, setBettingState] = useState<BettingState>({
-    bets: [],
-    isLoading: false,
-    error: null,
-    placingBet: false,
-    recommendedAmount: null,
-    loadingRecommended: false,
-  });
+  const [bets, setBets] = useState<Bet[]>([]);
+  const [recommendedAmount, setRecommendedAmount] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+  const [placingBet, setPlacingBet] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Получение истории ставок
-  const loadBetsHistory = useCallback(async () => {
-    setBettingState(prev => ({ ...prev, isLoading: true, error: null }));
+  const fetchBets = async () => {
+    setLoading(true);
+    setError(null);
     
     try {
-      const bets = await apiClient.getBetsHistory();
-      setBettingState(prev => ({
-        ...prev,
-        bets,
-        isLoading: false,
-      }));
-      console.log('📊 Bets history loaded:', bets);
+      const response = await apiClient.getBets();
+      setBets(response.bets || []); // Ensure it's always an array
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to load bets history';
-      setBettingState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: errorMessage,
-      }));
-      console.error('❌ Failed to load bets history:', errorMessage);
+      const apiError = apiClient.handleError(error);
+      setError(apiError.message);
+      setBets([]); // Reset to empty array on error
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  // Размещение ставки
-  const placeBet = useCallback(async (request: BetRequest) => {
-    setBettingState(prev => ({ ...prev, placingBet: true, error: null }));
+  const fetchRecommendedBet = async () => {
+    try {
+      const response = await apiClient.getRecommendedBet();
+      setRecommendedAmount(response.recommended_amount || 3); // Default to 3 if not available
+    } catch (error: any) {
+      console.warn('Failed to fetch recommended bet:', error);
+      setRecommendedAmount(3); // Default fallback amount
+    }
+  };
+
+  const placeBet = async (amount: number) => {
+    setPlacingBet(true);
+    setError(null);
     
     try {
-      const newBet = await apiClient.placeBet(request);
+      const response = await apiClient.placeBet({ amount });
       
-      // Обновляем список ставок
-      setBettingState(prev => ({
-        ...prev,
-        bets: [newBet, ...prev.bets],
-        placingBet: false,
-      }));
+      // Add new bet to the beginning of the list
+      setBets(prev => [response, ...prev]);
       
-      console.log('🎯 Bet placed successfully:', newBet);
-      return { success: true, bet: newBet };
+      return response;
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to place bet';
-      setBettingState(prev => ({
-        ...prev,
-        placingBet: false,
-        error: errorMessage,
-      }));
-      console.error('❌ Failed to place bet:', errorMessage);
-      return { success: false, error: errorMessage };
+      const apiError = apiClient.handleError(error);
+      setError(apiError.message);
+      throw error;
+    } finally {
+      setPlacingBet(false);
     }
-  }, []);
+  };
 
-  // Получение рекомендуемой ставки
-  const getRecommendedBet = useCallback(async () => {
-    setBettingState(prev => ({ ...prev, loadingRecommended: true, error: null }));
+  const getBet = async (id: string) => {
+    setLoading(true);
+    setError(null);
     
     try {
-      const recommendedAmount = await apiClient.getRecommendedBet();
-      setBettingState(prev => ({
-        ...prev,
-        recommendedAmount,
-        loadingRecommended: false,
-      }));
-      console.log('💡 Recommended bet amount:', recommendedAmount);
-      return recommendedAmount;
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to get recommended bet';
-      setBettingState(prev => ({
-        ...prev,
-        loadingRecommended: false,
-        error: errorMessage,
-      }));
-      console.error('❌ Failed to get recommended bet:', errorMessage);
-      return null;
-    }
-  }, []);
-
-  // Получение информации о конкретной ставке
-  const getBetById = useCallback(async (id: string) => {
-    try {
-      const bet = await apiClient.getBetById(id);
+      const response = await apiClient.getBet(id);
       
-      // Обновляем ставку в списке, если она там есть
-      setBettingState(prev => ({
-        ...prev,
-        bets: prev.bets.map(b => b.id === id ? bet : b),
-      }));
+      // Update bet in the list if it exists
+      setBets(prev => prev.map(bet => bet.id === id ? response : bet));
       
-      console.log('🔍 Bet details loaded:', bet);
-      return bet;
+      return response;
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to load bet details';
-      setBettingState(prev => ({ ...prev, error: errorMessage }));
-      console.error('❌ Failed to load bet details:', errorMessage);
-      return null;
+      const apiError = apiClient.handleError(error);
+      setError(apiError.message);
+      throw error;
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  const clearError = useCallback(() => {
-    setBettingState(prev => ({ ...prev, error: null }));
-  }, []);
+  const refreshBets = async () => {
+    await fetchBets();
+  };
+
+  const refreshRecommendedBet = async () => {
+    await fetchRecommendedBet();
+  };
+
+  const clearError = () => {
+    setError(null);
+  };
+
+  // Load initial data - removed dependencies to prevent infinite loops
+  useEffect(() => {
+    fetchBets();
+    fetchRecommendedBet();
+  }, []); // Empty dependency array
+
+  // Get betting statistics
+  const stats = {
+    totalBets: bets.length,
+    completedBets: bets.filter(bet => bet.status === 'completed').length,
+    pendingBets: bets.filter(bet => bet.status === 'pending').length,
+    totalWinnings: bets
+      .filter(bet => bet.status === 'completed' && bet.win_amount)
+      .reduce((sum, bet) => sum + (bet.win_amount || 0), 0),
+    totalWagered: bets.reduce((sum, bet) => sum + bet.amount, 0),
+  };
 
   return {
-    ...bettingState,
-    loadBetsHistory,
+    bets,
+    recommendedAmount,
+    loading,
+    placingBet,
+    error,
+    stats,
+    fetchBets,
+    fetchRecommendedBet,
     placeBet,
-    getRecommendedBet,
-    getBetById,
+    getBet,
+    refreshBets,
+    refreshRecommendedBet,
     clearError,
   };
 }; 

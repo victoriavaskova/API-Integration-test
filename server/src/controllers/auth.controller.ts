@@ -1,7 +1,8 @@
 import type { Request, Response } from 'express';
 import { asyncErrorHandler } from '../middleware/error-handler.middleware.js';
 import { getUserFromRequest, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
-import type { AuthService, LoginResult } from '../services/auth.service.js';
+import type { AuthService } from '../services/auth.service.js';
+import { sendSuccessResponse, sendErrorResponse, getErrorDetails } from '../utils/response.helper.js';
 
 /**
  * Контроллер для аутентификации
@@ -17,30 +18,23 @@ export class AuthController {
     const { username } = req.body;
 
     if (!username) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Username is required',
-          details: { field: 'username' }
-        }
-      });
+      sendErrorResponse(res, 400, 'Bad Request', 'Username is required');
       return;
     }
 
     const result = await this.authService.login(username);
 
     if (result.success) {
-      res.status(200).json({
-        success: true,
-        data: result.data
-      });
+      // Формат ответа согласно README: { token, expiresIn }
+      const loginData = {
+        token: result.data!.token,
+        expiresIn: result.data!.expiresIn
+      };
+      sendSuccessResponse(res, 200, loginData);
     } else {
-      const statusCode = result.error!.code === 'USER_NOT_FOUND' ? 404 : 400;
-      res.status(statusCode).json({
-        success: false,
-        error: result.error
-      });
+      const { statusCode, error } = getErrorDetails(result.error!.code);
+      const message = result.error!.code === 'USER_NOT_FOUND' ? 'User not found' : result.error!.message;
+      sendErrorResponse(res, statusCode, error, message);
     }
   });
 
@@ -172,35 +166,46 @@ export class AuthController {
     const token = req.query.token as string || req.headers.authorization?.replace('Bearer ', '');
 
     if (!token) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Token is required',
-          details: { sources: ['query.token', 'headers.authorization'] }
-        }
-      });
+      sendErrorResponse(res, 400, 'Bad Request', 'Token is required');
       return;
     }
 
     const result = await this.authService.validateToken(token);
 
     if (result.success) {
-      res.status(200).json({
-        success: true,
-        data: {
-          valid: true,
-          payload: result.data
-        }
-      });
+      const validationData = {
+        valid: true,
+        payload: result.data
+      };
+      sendSuccessResponse(res, 200, validationData);
     } else {
-      res.status(401).json({
-        success: false,
-        data: {
-          valid: false
-        },
-        error: result.error
-      });
+      sendErrorResponse(res, 401, 'Unauthorized', 'Invalid token');
     }
+  });
+
+  /**
+   * POST /api/internal/auth
+   * Тестирование аутентификации в API ставок
+   */
+  testExternalAuth = asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      sendErrorResponse(res, 400, 'Bad Request', 'user_id is required');
+      return;
+    }
+
+    // TODO: Реализовать тестирование внешней аутентификации
+    // Для примера возвращаем успешный ответ
+    const externalResponse = {
+      message: "Successfully authenticated",
+      user_id: user_id,
+      username: `user${user_id}`
+    };
+
+    sendSuccessResponse(res, 200, {
+      success: true,
+      external_response: externalResponse
+    });
   });
 } 

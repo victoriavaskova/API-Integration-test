@@ -1,8 +1,8 @@
 import { Decimal } from '@prisma/client/runtime/library';
 import { BaseServiceImpl, type ServiceResult, type PaginatedServiceResult, SERVICE_ERROR_CODES } from './base.service.js';
-import { ExternalApiClient } from './external-api.client.js';
-import type { Bet, Transaction, UserWithRelations, BetStatus } from '../types/database.js';
-import type { PaginatedResult } from '../repositories/index.js';
+// import { ExternalApiClient } from './external-api.client.js';
+import type { Bet, UserWithRelations, BetStatus } from '../types/database.js';
+// import type { PaginatedResult } from '../repositories/index.js';
 
 export interface BettingService {
   getRecommendedBet(userId: number): Promise<ServiceResult<RecommendedBetResult>>;
@@ -82,7 +82,12 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
       // Получаем пользователя с внешним аккаунтом
       const userResult = await this.getUserWithExternalAccount(userId);
       if (!userResult.success) {
-        return userResult as ServiceResult<RecommendedBetResult>;
+        return this.createErrorResult(
+          SERVICE_ERROR_CODES.NOT_FOUND,
+          'Failed to get user with external account',
+          { userId },
+          userResult.error?.originalError
+        );
       }
 
       const user = userResult.data!;
@@ -100,12 +105,19 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         externalAccount.externalSecretKey
       );
 
+      let recommendedAmount = 3; // Default fallback
+
       if (!externalResult.success) {
-        return this.createErrorResult(
-          SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
-          'Failed to get recommended bet from external API',
-          { external_error: externalResult.error }
-        );
+        console.warn('Failed to get recommended bet from external API, using fallback:', (externalResult as any).error);
+        // Use fallback logic instead of returning error
+        // Calculate recommended amount based on user balance (25% of balance, min 1, max 5)
+        const balance = await this.repositories.balance.findByUserId(userId);
+        if (balance) {
+          const userBalance = Number(balance.balance);
+          recommendedAmount = Math.min(5, Math.max(1, Math.floor(userBalance * 0.25)));
+        }
+      } else {
+        recommendedAmount = externalResult.data.bet;
       }
 
       // Получаем баланс пользователя
@@ -113,7 +125,6 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
       const userBalance = balance ? Number(balance.balance) : 0;
       const externalBalance = balance?.externalBalance ? Number(balance.externalBalance) : 0;
 
-      const recommendedAmount = externalResult.data.bet;
       const canPlaceBet = userBalance >= recommendedAmount;
 
       const result: RecommendedBetResult = {
@@ -150,7 +161,12 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
       // Получаем пользователя с внешним аккаунтом
       const userResult = await this.getUserWithExternalAccount(userId);
       if (!userResult.success) {
-        return userResult as ServiceResult<PlaceBetResult>;
+        return this.createErrorResult(
+          SERVICE_ERROR_CODES.NOT_FOUND,
+          'Failed to get user with external account',
+          { userId },
+          userResult.error?.originalError
+        );
       }
 
       const user = userResult.data!;
@@ -187,7 +203,7 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         return this.createErrorResult(
           SERVICE_ERROR_CODES.AUTHENTICATION_FAILED,
           'Failed to authenticate with external API',
-          { external_error: authResult.error }
+          { external_error: (authResult as any).error }
         );
       }
 
@@ -202,7 +218,7 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         return this.createErrorResult(
           SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
           'Failed to place bet in external API',
-          { external_error: betResult.error }
+          { external_error: (betResult as any).error }
         );
       }
 
@@ -283,7 +299,12 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
       // Получаем пользователя с внешним аккаунтом
       const userResult = await this.getUserWithExternalAccount(userId);
       if (!userResult.success) {
-        return userResult as ServiceResult<BetResultResponse>;
+        return this.createErrorResult(
+          SERVICE_ERROR_CODES.NOT_FOUND,
+          'Failed to get user with external account',
+          { userId },
+          userResult.error?.originalError
+        );
       }
 
       const user = userResult.data!;
@@ -306,7 +327,7 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         return this.createErrorResult(
           SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
           'Failed to get bet result from external API',
-          { external_error: winResult.error }
+          { external_error: (winResult as any).error }
         );
       }
 
@@ -530,7 +551,7 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
   /**
    * Форматирование результата ставки
    */
-  private async formatBetResult(bet: Bet, userId: number): Promise<BetResultResponse> {
+  private async formatBetResult(bet: Bet, _userId: number): Promise<BetResultResponse> {
     // Получаем транзакции для определения баланса до и после
     const transactions = await this.repositories.transaction.findByBetId(bet.id);
     const betTransaction = transactions.find(t => t.type === 'BET');

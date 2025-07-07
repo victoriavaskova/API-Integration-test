@@ -138,8 +138,18 @@ export class PrismaApiLogRepository implements ApiLogRepository {
   }
 
   async create(data: CreateApiLogData): Promise<ApiLog> {
+    const prismaData: any = {
+      endpoint: data.endpoint,
+      method: data.method,
+      statusCode: data.statusCode,
+      userId: data.userId || null,
+      requestBody: data.requestBody || null,
+      responseBody: data.responseBody || null,
+      requestDurationMs: data.requestDurationMs || null,
+      ipAddress: data.ipAddress || null
+    };
     return await this.prisma.apiLog.create({
-      data
+      data: prismaData
     });
   }
 
@@ -147,7 +157,7 @@ export class PrismaApiLogRepository implements ApiLogRepository {
     return await this.create(data);
   }
 
-  async update(id: number, data: never): Promise<ApiLog> {
+  async update(_id: number, _data: never): Promise<ApiLog> {
     throw new Error('API logs cannot be updated');
   }
 

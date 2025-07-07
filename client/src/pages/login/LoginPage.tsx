@@ -1,68 +1,88 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Card, Form, Button, Alert } from 'react-bootstrap';
+import { useAuth } from '@shared/hooks/useAuth';
 
-export const LoginPage = () => {
+export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login, error, clearError } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // TODO: Implement actual authentication
-    console.log('Login attempt:', { username, password });
-    
-    // Temporary redirect to dashboard
-    navigate('/dashboard');
+    if (!username.trim()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    clearError();
+
+    try {
+      await login({ username: username.trim() });
+      navigate('/dashboard');
+    } catch (error) {
+      // Error is handled by useAuth hook
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="login-container">
-      <Container>
-        <Row className="justify-content-center">
-          <Col md={6} lg={4}>
-            <Card className="login-card">
-              <Card.Body className="p-4">
-                <div className="text-center mb-4">
-                  <h2 className="h3 mb-3">Вход в систему ставок</h2>
-                  <p className="text-muted">Введите ваши учетные данные для входа</p>
-                </div>
-                
-                <Form onSubmit={handleSubmit}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Имя пользователя</Form.Label>
-                    <Form.Control
-                      type="text"
-                      placeholder="Введите имя пользователя"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      required
-                    />
-                  </Form.Group>
-                  
-                  <Form.Group className="mb-3">
-                    <Form.Label>Пароль</Form.Label>
-                    <Form.Control
-                      type="password"
-                      placeholder="Введите пароль"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                  </Form.Group>
+    <div className="flex flex-center" style={{ minHeight: '100vh' }}>
+      <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
+        <div className="text-center mb-2">
+          <h1>🎲 Betting System</h1>
+          <p className="text-secondary">Test Application with HMAC SHA-512 Authentication</p>
+          <p className="text-secondary">50/50 chance • 2x payout on win</p>
+        </div>
 
-                  <div className="d-grid">
-                    <Button variant="primary" type="submit" size="lg">
-                      Войти
-                    </Button>
-                  </div>
-                </Form>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-      </Container>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="username" className="form-label">
+              Username
+            </label>
+            <input
+              type="text"
+              id="username"
+              className="form-input"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter your username"
+              disabled={isSubmitting}
+              autoFocus
+            />
+          </div>
+
+          {error && (
+            <div className="card" style={{ backgroundColor: 'var(--color-danger)', marginBottom: '1rem' }}>
+              <p style={{ margin: 0, color: 'white' }}>{error}</p>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ width: '100%' }}
+            disabled={isSubmitting || !username.trim()}
+          >
+            {isSubmitting ? (
+              <>
+                <div className="spinner" style={{ width: '16px', height: '16px', marginRight: '8px' }}></div>
+                Logging in...
+              </>
+            ) : (
+              'Login'
+            )}
+          </button>
+        </form>
+
+        <div className="mt-2 text-center">
+          <p className="text-secondary" style={{ fontSize: '0.9rem' }}>
+            Available test users: user1, user2, user3, user4, user5
+          </p>
+        </div>
+      </div>
     </div>
   );
-};
+}; 

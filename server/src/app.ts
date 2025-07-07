@@ -20,10 +20,33 @@ const PORT = process.env.PORT || 3003;
 
 // Middleware
 app.use(helmet());
+
+// CORS Configuration - Support both development ports
+const corsOrigins = [
+  process.env.CLIENT_URL || 'http://localhost:3000',
+  'http://localhost:3000',  // Client development port
+  'http://localhost:5173',  // Vite default port (backup)
+  'http://localhost:8080'   // Alternative port
+];
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (corsOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      console.warn(`🚫 CORS blocked origin: ${origin}`);
+      return callback(new Error('Not allowed by CORS'), false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
+  exposedHeaders: ['Content-Length', 'X-Requested-With']
 }));
+
 app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -48,9 +71,13 @@ async function initializeServices() {
     // Создаем конфигурацию для сервисов
     const servicesConfig = {
       auth: {
-        jwtSecret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
+        jwtSecret: process.env.JWT_SECRET || (() => {
+          throw new Error('JWT_SECRET environment variable is required');
+        })(),
         jwtExpiresIn: '24h',
-        adminToken: process.env.ADMIN_TOKEN || 'admin-token'
+        adminToken: process.env.ADMIN_TOKEN || (() => {
+          throw new Error('ADMIN_TOKEN environment variable is required');
+        })()
       },
       externalApi: {
         maxRetries: 3,
@@ -88,7 +115,7 @@ async function startServer() {
     const { controllers } = await initializeServices();
     
     // Отладочный middleware для проверки всех запросов
-    app.use('/api', (req, res, next) => {
+    app.use('/api', (req, _res, next) => {
       console.log(`🔍 API Request: ${req.method} ${req.url} -> ${req.path}`);
       next();
     });

@@ -152,7 +152,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
     });
   }
 
-  async update(id: number, data: never): Promise<Transaction> {
+  async update(_id: number, _data: never): Promise<Transaction> {
     throw new Error('Transactions cannot be updated');
   }
 

@@ -1,118 +1,100 @@
-import { useState, useEffect, useCallback } from 'react';
-import { apiClient, User, LoginRequest } from '../api/api-client';
-
-interface AuthState {
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  user: User | null;
-  error: string | null;
-}
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { apiClient } from '@shared/api/client';
+import type { LoginRequest, AuthResponse } from '@shared/api/types';
 
 export const useAuth = () => {
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: false,
-    isLoading: true,
-    user: null,
-    error: null,
-  });
+  const [user, setUser] = useState<any>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  // Проверка аутентификации при загрузке
-  useEffect(() => {
-    const checkAuth = async () => {
-      setAuthState(prev => ({ ...prev, isLoading: true }));
-      
-      if (apiClient.isAuthenticated()) {
-        const isValid = await apiClient.validateToken();
-        
-        if (isValid) {
-          const user = apiClient.getCurrentUser();
-          setAuthState({
-            isAuthenticated: true,
-            isLoading: false,
-            user,
-            error: null,
-          });
-        } else {
-          setAuthState({
-            isAuthenticated: false,
-            isLoading: false,
-            user: null,
-            error: null,
-          });
-        }
-      } else {
-        setAuthState({
-          isAuthenticated: false,
-          isLoading: false,
-          user: null,
-          error: null,
-        });
-      }
-    };
+  const login = async (username: string) => {
+    setLoading(true);
+    setError(null);
 
-    checkAuth();
-  }, []);
-
-  const login = useCallback(async (request: LoginRequest) => {
-    setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
-    
     try {
-      const response = await apiClient.login(request);
+      const response = await apiClient.login({ username });
       
-      if (response.success) {
-        setAuthState({
-          isAuthenticated: true,
-          isLoading: false,
-          user: response.data.user,
-          error: null,
-        });
-        
-        console.log('✅ Login successful:', response.data.user);
-        return { success: true };
-      } else {
-        setAuthState(prev => ({
-          ...prev,
-          isLoading: false,
-          error: 'Login failed',
-        }));
-        return { success: false, error: 'Login failed' };
+      // Store token
+      localStorage.setItem('token', response.token);
+      
+      // Get user info
+      try {
+        const userInfo = await apiClient.getCurrentUser();
+        setUser(userInfo);
+      } catch (userError) {
+        // If user info fails, set basic user data
+        setUser({ username });
       }
+      
+      setIsAuthenticated(true);
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
+      
+      return response;
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Login failed';
-      setAuthState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: errorMessage,
-      }));
-      return { success: false, error: errorMessage };
+      const apiError = apiClient.handleError(error);
+      setError(apiError.message);
+      throw error;
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  const logout = useCallback(async () => {
-    setAuthState(prev => ({ ...prev, isLoading: true }));
-    
+  const logout = async () => {
     try {
       await apiClient.logout();
     } catch (error) {
-      console.warn('Logout API call failed, but continuing with local logout');
+      // Ignore logout errors
+    } finally {
+      // Always clear local state
+      localStorage.removeItem('token');
+      setUser(null);
+      setIsAuthenticated(false);
+      navigate('/login');
     }
-    
-    setAuthState({
-      isAuthenticated: false,
-      isLoading: false,
-      user: null,
-      error: null,
-    });
-    
-    console.log('✅ Logout successful');
-  }, []);
+  };
 
-  const clearError = useCallback(() => {
-    setAuthState(prev => ({ ...prev, error: null }));
+  const checkAuth = async () => {
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      setIsAuthenticated(false);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const userInfo = await apiClient.getCurrentUser();
+      setUser(userInfo);
+      setIsAuthenticated(true);
+    } catch (error) {
+      // Token is invalid
+      localStorage.removeItem('token');
+      setIsAuthenticated(false);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearError = () => {
+    setError(null);
+  };
+
+  // Check authentication status on mount
+  useEffect(() => {
+    checkAuth();
   }, []);
 
   return {
-    ...authState,
+    user,
+    isAuthenticated,
+    loading,
+    error,
     login,
     logout,
     clearError,
