@@ -4,6 +4,7 @@ import { PrismaBetRepository, type BetRepository } from './bet.repository.js';
 import { PrismaTransactionRepository, type TransactionRepository } from './transaction.repository.js';
 import { PrismaBalanceRepository, type BalanceRepository } from './balance.repository.js';
 import { PrismaApiLogRepository, type ApiLogRepository } from './api-log.repository.js';
+import { PrismaIdempotencyKeyRepository, type IdempotencyKeyRepository } from './idempotency.repository.js';
 
 /**
  * Интерфейс для всех репозиториев
@@ -14,6 +15,7 @@ export interface Repositories {
   transaction: TransactionRepository;
   balance: BalanceRepository;
   apiLog: ApiLogRepository;
+  idempotency: IdempotencyKeyRepository;
 }
 
 /**
@@ -45,7 +47,8 @@ export class RepositoryFactory {
         bet: new PrismaBetRepository(prisma),
         transaction: new PrismaTransactionRepository(prisma),
         balance: new PrismaBalanceRepository(prisma),
-        apiLog: new PrismaApiLogRepository(prisma)
+        apiLog: new PrismaApiLogRepository(prisma),
+        idempotency: new PrismaIdempotencyKeyRepository(prisma),
       };
     }
     return this.repositories;

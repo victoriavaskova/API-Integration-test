@@ -1,14 +1,19 @@
-import { Router } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import type { Controllers } from '../controllers/index.js';
 import { createAuthRoutes } from './auth.routes.js';
 import { createBettingRoutes } from './betting.routes.js';
 import { createBalanceRoutes } from './balance.routes.js';
 import { createInternalRoutes } from './internal.routes.js';
 
+type IdempotencyMiddleware = (req: Request, res: Response, next: NextFunction) => Promise<any>;
+
 /**
  * Создает и настраивает все маршруты API
  */
-export function createApiRoutes(controllers: Controllers): Router {
+export function createApiRoutes(
+  controllers: Controllers,
+  idempotency: IdempotencyMiddleware
+): Router {
   const router = Router();
   console.log('🔧 Creating API routes with controllers:', Object.keys(controllers));
 
@@ -36,7 +41,7 @@ export function createApiRoutes(controllers: Controllers): Router {
 
   // Основные маршруты API
   const authRoutes = createAuthRoutes(controllers.auth);
-  const bettingRoutes = createBettingRoutes(controllers.betting);
+  const bettingRoutes = createBettingRoutes(controllers.betting, idempotency);
   const balanceRoutes = createBalanceRoutes(controllers.balance);
   
   console.log('🔧 Auth routes created:', typeof authRoutes);

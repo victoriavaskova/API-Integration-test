@@ -1,7 +1,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as dotenv from 'dotenv';
-import { encrypt } from '../src/utils/crypto.helper.js';
+import { encrypt } from '../../src/utils/crypto.helper.js';
 
 // Загружаем переменные окружения
 dotenv.config();

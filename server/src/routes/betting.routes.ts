@@ -1,9 +1,14 @@
-import { Router } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
 import type { BettingController } from '../controllers/betting.controller.js';
 import { authenticateUser } from '../middleware/auth.middleware.js';
 import { apiLimiter } from '../middleware/rate-limiter.middleware.js';
 
-export function createBettingRoutes(bettingController: BettingController): Router {
+type IdempotencyMiddleware = (req: Request, res: Response, next: NextFunction) => Promise<void>;
+
+export function createBettingRoutes(
+  bettingController: BettingController,
+  idempotency: IdempotencyMiddleware
+): Router {
   const router = Router();
 
   /**
@@ -225,7 +230,7 @@ export function createBettingRoutes(bettingController: BettingController): Route
    *                   type: string
    *                   example: "Invalid bet amount. Must be between 1 and 5."
    */
-  router.post('/', apiLimiter, authenticateUser, bettingController.placeBet);
+  router.post('/', apiLimiter, authenticateUser, idempotency, bettingController.placeBet);
 
   return router;
 } 

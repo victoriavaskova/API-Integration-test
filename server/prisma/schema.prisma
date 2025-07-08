@@ -134,4 +134,18 @@ enum TransactionType {
   WIN
 
   @@map("transaction_type")
+}
+
+model IdempotencyKey {
+  id           String   @id @unique
+  userId       Int      @map("user_id")
+  endpoint     String
+  requestHash  String   @map("request_hash")
+  responseBody Json     @map("response_body")
+  statusCode   Int      @map("status_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+  lockedAt     DateTime @default(now()) @map("locked_at")
+
+  @@unique([userId, endpoint, requestHash])
+  @@map("idempotency_keys")
 } 

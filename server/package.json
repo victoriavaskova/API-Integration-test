@@ -24,6 +24,9 @@
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix"
   },
+  "prisma": {
+    "seed": "tsx prisma/seeds/seed.ts"
+  },
   "keywords": [
     "express",
     "typescript",

@@ -12,6 +12,7 @@ import { createRepositories } from './repositories/index.js';
 import { createApiRoutes } from './routes/index.js';
 import { initializeGlobalAuthService } from './middleware/auth.middleware.js';
 import { globalLimiter } from './middleware/rate-limiter.middleware.js';
+import { idempotencyMiddleware } from './middleware/idempotency.middleware.js';
 
 // Load environment variables
 dotenv.config();
@@ -117,7 +118,7 @@ async function initializeServices() {
 async function startServer() {
   try {
     // Инициализируем сервисы
-    const { controllers } = await initializeServices();
+    const { controllers, repositories } = await initializeServices();
     
     // Отладочный middleware для проверки всех запросов
     app.use('/api', (req, _res, next) => {
@@ -126,7 +127,10 @@ async function startServer() {
     });
     
     // Подключаем маршруты API после инициализации
-    const apiRoutes = createApiRoutes(controllers);
+    const apiRoutes = createApiRoutes(
+      controllers, 
+      idempotencyMiddleware(repositories.idempotency)
+    );
     console.log('📋 API routes object:', typeof apiRoutes, Object.keys(apiRoutes));
     app.use('/api', apiRoutes);
     console.log('🔗 API routes connected successfully');

@@ -30,7 +30,7 @@ export function createBalanceRoutes(balanceController: BalanceController): Route
    *                   format: date-time
    *                   example: "2023-06-15T12:30:00Z"
    */
-  router.get('/', apiLimiter, authenticateUser, balanceController.getBalance);
+  router.get('/', apiLimiter, authenticateUser, balanceController.getCurrentBalance);
 
   /**
    * @swagger
