@@ -171,163 +171,132 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
   }
 
   /**
-   * Размещение ставки
+   * Размещение ставки с полным циклом взаимодействия с внешним API
    */
   async placeBet(userId: number, amount: number): Promise<ServiceResult<PlaceBetResult>> {
     try {
-      // Валидация входных данных
       this.validateInput({ amount }, {
         amount: { required: true, type: 'number', min: 1, max: 5 }
       });
 
-      await this.logOperation('place_bet', userId, { amount });
+      await this.logOperation('place_bet_start', userId, { amount });
 
-      // Получаем пользователя с внешним аккаунтом
+      // 1. Получаем пользователя и его внешний аккаунт
       const userResult = await this.getUserWithExternalAccount(userId);
       if (!userResult.success) {
-        return this.createErrorResult(
-          SERVICE_ERROR_CODES.NOT_FOUND,
-          'Failed to get user with external account',
-          { userId },
-          userResult.error?.originalError
-        );
+        return this.createErrorResult(userResult.error!.code, userResult.error!.message, userResult.error!.details);
       }
-
       const user = userResult.data!;
       const externalAccount = user.externalApiAccounts?.[0];
       if (!externalAccount) {
-        return this.createErrorResult(
-          SERVICE_ERROR_CODES.NOT_FOUND,
-          'External account not found for user'
-        );
+        return this.createErrorResult(SERVICE_ERROR_CODES.NOT_FOUND, 'External account not found for user');
       }
+      
+      const { externalUserId, externalSecretKey } = externalAccount;
+      const decryptedSecretKey = decrypt(externalSecretKey);
 
-      // Получаем текущий баланс ДО размещения ставки
-      const currentBalanceResult = await this.externalApiClient.getBalance(
-        externalAccount.externalUserId,
-        decrypt(externalAccount.externalSecretKey),
-        userId
-      );
-
-      let balanceBefore = 0;
-      if (currentBalanceResult.success) {
-        balanceBefore = currentBalanceResult.data.balance;
-      } else {
-        // Fallback к локальному балансу
-        const balance = await this.repositories.balance.findByUserId(userId);
-        balanceBefore = balance ? Number(balance.balance) : 0;
-      }
-
-      // Проверяем достаточность баланса
-      if (balanceBefore < amount) {
-        return this.createErrorResult(
-          SERVICE_ERROR_CODES.INSUFFICIENT_BALANCE,
-          'Insufficient balance',
-          { 
-            required: amount, 
-            available: balanceBefore 
-          }
-        );
-      }
-
-      // Аутентификация в внешнем API
-      const authResult = await this.externalApiClient.authenticate(
-        externalAccount.externalUserId,
-        decrypt(externalAccount.externalSecretKey),
-        userId
-      );
-
+      // 2. Аутентификация
+      const authResult = await this.externalApiClient.authenticate(externalUserId, decryptedSecretKey, userId);
       if (!authResult.success) {
-        console.warn('Failed to authenticate with external API for bet placement:', (authResult as any).error);
-        return this.createErrorResult(
-          SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
-          'Failed to authenticate with external API',
-          {},
-          (authResult as any).error
-        );
+        return this.createErrorResult(SERVICE_ERROR_CODES.AUTHENTICATION_FAILED, 'External API authentication failed');
       }
 
-      // Размещаем ставку в внешнем API (POST /api/bet с { "bet": amount })
-      const betResult = await this.externalApiClient.placeBet(
-        externalAccount.externalUserId,
-        decrypt(externalAccount.externalSecretKey),
-        amount,
-        userId
-      );
+      // 3. Получение и установка начального баланса
+      let balanceBefore = 0;
+      const initialBalanceResult = await this.externalApiClient.getBalance(externalUserId, decryptedSecretKey, userId);
 
-      if (!betResult.success) {
-        console.error('Failed to place bet in external API:', (betResult as any).error);
-        return this.createErrorResult(
-          SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
-          'Failed to place bet in external API',
-          {},
-          (betResult as any).error
-        );
+      if (initialBalanceResult.success) {
+        balanceBefore = initialBalanceResult.data.balance;
+        if (balanceBefore === 0) {
+          const setBalanceResult = await this.externalApiClient.setBalance(externalUserId, decryptedSecretKey, 1000, userId);
+          if (setBalanceResult.success) {
+            balanceBefore = setBalanceResult.data.balance;
+          }
+        }
+      } else {
+        return this.createErrorResult(SERVICE_ERROR_CODES.BALANCE_SYNC_ERROR, 'Failed to retrieve initial balance');
       }
 
-      const externalBetId = String(betResult.data.bet_id);
-
-      // Получаем обновленный баланс ПОСЛЕ размещения ставки
-      const updatedBalanceResult = await this.externalApiClient.getBalance(
-        externalAccount.externalUserId,
-        decrypt(externalAccount.externalSecretKey),
-        userId
-      );
-
-      let balanceAfter = balanceBefore - amount; // Fallback расчет
-      if (updatedBalanceResult.success) {
-        balanceAfter = updatedBalanceResult.data.balance;
+      // 4. Проверка баланса
+      if (balanceBefore < amount) {
+        return this.createErrorResult(SERVICE_ERROR_CODES.INSUFFICIENT_BALANCE, 'Insufficient balance', { required: amount, available: balanceBefore });
       }
 
-      // Обновляем локальный баланс в соответствии с внешним
-      await this.repositories.balance.updateBalance(userId, new Decimal(balanceAfter));
-      await this.repositories.balance.updateExternalBalance(userId, new Decimal(balanceAfter));
+      // 5. Размещение ставки
+      const placeBetResult = await this.externalApiClient.placeBet(externalUserId, decryptedSecretKey, amount, userId);
+      if (!placeBetResult.success) {
+        return this.createErrorResult(SERVICE_ERROR_CODES.EXTERNAL_API_ERROR, 'Failed to place bet');
+      }
+      const externalBetId = String(placeBetResult.data.bet_id);
+      
+      // 6. Получение результата ставки
+      const winResult = await this.externalApiClient.getWinResult(externalUserId, decryptedSecretKey, externalBetId, userId);
+      if (!winResult.success) {
+        return this.createErrorResult(SERVICE_ERROR_CODES.EXTERNAL_API_ERROR, 'Failed to get bet result');
+      }
+      const winAmount = new Decimal(winResult.data.win || 0);
 
-      // Создаем запись о ставке
+      // 7. Получение финального баланса
+      const finalBalanceResult = await this.externalApiClient.getBalance(externalUserId, decryptedSecretKey, userId);
+      if (!finalBalanceResult.success) {
+        return this.createErrorResult(SERVICE_ERROR_CODES.BALANCE_SYNC_ERROR, 'Failed to retrieve final balance');
+      }
+      const balanceAfter = new Decimal(finalBalanceResult.data.balance);
+      
+      // 8. Обновление локальной БД
+      await this.repositories.balance.updateBalance(userId, balanceAfter);
+      
+      // Сначала создаем ставку
       const bet = await this.repositories.bet.create({
         userId,
-        externalBetId: externalBetId,
+        externalBetId,
         amount: new Decimal(amount),
-        status: 'PENDING'
       });
 
-      // Создаем транзакцию
-      await this.repositories.transaction.createBetTransaction(
+      // Затем обновляем ее до завершенного состояния
+      const completedBet = await this.repositories.bet.completeBet(bet.id, winAmount.toNumber());
+
+      // Транзакция списания
+      await this.repositories.transaction.create({
         userId,
-        bet.id,
-        amount,
-        balanceBefore,
-        balanceAfter
-      );
+        betId: completedBet.id,
+        type: 'BET',
+        amount: new Decimal(amount).negated(),
+        balanceBefore: new Decimal(balanceBefore),
+        balanceAfter: new Decimal(balanceBefore).sub(amount),
+        description: `Bet placement #${completedBet.id}`
+      });
+      
+      // Транзакция начисления (если есть выигрыш)
+      if (winAmount.gt(0)) {
+        await this.repositories.transaction.create({
+          userId,
+          betId: completedBet.id,
+          type: 'WIN',
+          amount: winAmount,
+          balanceBefore: new Decimal(balanceBefore).sub(amount),
+          balanceAfter: balanceAfter,
+          description: `Win for bet #${completedBet.id}`
+        });
+      }
 
       const result: PlaceBetResult = {
-        id: bet.id,
-        amount,
-        status: bet.status,
-        created_at: bet.createdAt.toISOString(),
-        external_bet_id: bet.externalBetId,
+        id: completedBet.id,
+        amount: amount,
+        status: completedBet.status,
+        created_at: completedBet.createdAt.toISOString(),
+        external_bet_id: completedBet.externalBetId,
         balance_before: balanceBefore,
-        balance_after: balanceAfter
+        balance_after: balanceAfter.toNumber(),
       };
 
-      await this.logOperation('place_bet_success', userId, { 
-        betId: bet.id, 
-        externalBetId: bet.externalBetId,
-        amount,
-        balanceBefore,
-        balanceAfter
-      });
+      await this.logOperation('place_bet_success', userId, { betId: completedBet.id, amount, winAmount: winAmount.toNumber() });
 
       return this.createSuccessResult(result);
 
     } catch (error) {
       await this.logOperation('place_bet_error', userId, { amount, error: error.message });
-      return this.createErrorResult(
-        SERVICE_ERROR_CODES.INTERNAL_ERROR,
-        'Failed to place bet',
-        { userId, amount },
-        error
-      );
+      return this.createErrorResult(SERVICE_ERROR_CODES.INTERNAL_ERROR, 'Failed to place bet', { amount }, error);
     }
   }
 

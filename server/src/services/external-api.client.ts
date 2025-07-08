@@ -10,7 +10,6 @@ import type {
   RecommendedBetResponse,
   WinRequest,
   WinResponse,
-  CheckBalanceResponse,
   ExternalApiError,
   ExternalApiResult,
   HttpMethod
@@ -77,13 +76,13 @@ export class ExternalApiClient {
   }
 
   /**
-   * Получение текущего баланса (согласно Swagger, это GET /check-balance)
+   * Получение текущего баланса
    */
-  async getBalance(externalUserId: string, secretKey: string, internalUserId?: number): Promise<ExternalApiResult<CheckBalanceResponse>> {
+  async getBalance(externalUserId: string, secretKey: string, internalUserId?: number): Promise<ExternalApiResult<BalanceResponse>> {
     return await this.makeRequest(
-      'GET',
-      'check-balance', // <--- Исправленный эндпоинт
-      undefined,       // <--- GET-запрос без тела
+      'POST',
+      'balance',
+      undefined,       // POST-запрос без тела для получения баланса
       externalUserId,
       secretKey,
       'balance',
