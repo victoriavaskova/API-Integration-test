@@ -15,14 +15,14 @@ export class AuthController {
    * Аутентификация пользователя по username
    */
   login = asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
-    const { username } = req.body;
+    const { username, email } = req.body;
 
     if (!username) {
       sendErrorResponse(res, 400, 'Bad Request', 'Username is required');
       return;
     }
 
-    const result = await this.authService.login(username);
+    const result = await this.authService.login(username, email);
 
     if (result.success) {
       // Формат ответа согласно README: { token, expiresIn }

@@ -185,7 +185,7 @@ export function isAdminRequest(req: Request): boolean {
  * Middleware для логирования аутентификации
  */
 export function authLoggingMiddleware() {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const user = getUserFromRequest(req);
     
     if (user) {

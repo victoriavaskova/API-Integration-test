@@ -3,7 +3,7 @@ import { BaseServiceImpl, type ServiceResult, SERVICE_ERROR_CODES } from './base
 import type { User, UserWithRelations } from '../types/database.js';
 
 export interface AuthService {
-  login(username: string): Promise<ServiceResult<LoginResult>>;
+  login(username: string, email?: string): Promise<ServiceResult<LoginResult>>;
   validateToken(token: string): Promise<ServiceResult<TokenPayload>>;
   refreshToken(token: string): Promise<ServiceResult<LoginResult>>;
   logout(userId: number): Promise<ServiceResult<void>>;
@@ -44,14 +44,14 @@ export class AuthServiceImpl extends BaseServiceImpl implements AuthService {
   /**
    * Аутентификация пользователя по username
    */
-  async login(username: string): Promise<ServiceResult<LoginResult>> {
+  async login(username: string, email?: string): Promise<ServiceResult<LoginResult>> {
     try {
       // Валидация входных данных
       this.validateInput({ username }, {
         username: { required: true, type: 'string', pattern: /^[a-zA-Z0-9_]{3,20}$/ }
       });
 
-      await this.logOperation('login_attempt', undefined, { username });
+      await this.logOperation('login_attempt', undefined, { username, email });
 
       // Поиск пользователя
       const user = await this.repositories.user.findByUsername(username);
@@ -61,6 +61,12 @@ export class AuthServiceImpl extends BaseServiceImpl implements AuthService {
           'User not found',
           { username }
         );
+      }
+
+      // Обновляем email пользователя, если он предоставлен и отличается
+      if (email && email !== user.email) {
+        await this.repositories.user.updateEmail(user.id, email);
+        user.email = email; // Обновляем локальный объект для возврата
       }
 
       // Обновляем время последнего входа
@@ -94,12 +100,12 @@ export class AuthServiceImpl extends BaseServiceImpl implements AuthService {
         }
       };
 
-      await this.logOperation('login_success', user.id, { username });
+      await this.logOperation('login_success', user.id, { username, email });
 
       return this.createSuccessResult(result);
 
     } catch (error) {
-      await this.logOperation('login_error', undefined, { username, error: error instanceof Error ? error.message : String(error) });
+      await this.logOperation('login_error', undefined, { username, email, error: error instanceof Error ? error.message : String(error) });
       return this.createErrorResult(
         SERVICE_ERROR_CODES.INTERNAL_ERROR,
         'Login failed',

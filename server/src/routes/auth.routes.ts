@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { AuthController } from '../controllers/auth.controller.js';
 import { authenticateUser } from '../middleware/auth.middleware.js';
+import { authLimiter } from '../middleware/rate-limiter.middleware.js';
 
 export function createAuthRoutes(authController: AuthController): Router {
   const router = Router();
@@ -54,7 +55,7 @@ export function createAuthRoutes(authController: AuthController): Router {
    *                   type: string
    *                   example: "User not found"
    */
-  router.post('/login', authController.login);
+  router.post('/login', authLimiter, authController.login);
 
   /**
    * @swagger
@@ -77,7 +78,7 @@ export function createAuthRoutes(authController: AuthController): Router {
    *       200:
    *         description: Токен обновлен
    */
-  router.post('/refresh', authController.refreshToken);
+  router.post('/refresh', authLimiter, authController.refreshToken);
 
   /**
    * @swagger

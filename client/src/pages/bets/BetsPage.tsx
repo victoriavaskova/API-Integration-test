@@ -7,7 +7,7 @@ const BetCard: React.FC<{ bet: Bet }> = ({ bet }) => {
   const getStatusColor = (status: Bet['status']) => {
     switch (status) {
       case 'completed':
-        return bet.win_amount ? 'text-success' : 'text-danger';
+        return bet.win_amount && bet.win_amount !== '0' ? 'text-success' : 'text-danger';
       case 'pending':
         return 'text-warning';
       case 'cancelled':
@@ -20,7 +20,7 @@ const BetCard: React.FC<{ bet: Bet }> = ({ bet }) => {
   const getStatusText = (status: Bet['status']) => {
     switch (status) {
       case 'completed':
-        return bet.win_amount ? '✅ Won' : '❌ Lost';
+        return bet.win_amount && bet.win_amount !== '0' ? '✅ Won' : '❌ Lost';
       case 'pending':
         return '⏳ Pending';
       case 'cancelled':
@@ -57,13 +57,13 @@ const BetCard: React.FC<{ bet: Bet }> = ({ bet }) => {
         {bet.status === 'completed' && (
           <div>
             <div className="text-secondary">
-              {bet.win_amount ? 'Win Amount' : 'Lost Amount'}
+              {bet.win_amount && bet.win_amount !== '0' ? 'Win Amount' : 'Lost Amount'}
             </div>
             <div 
-              className={bet.win_amount ? 'text-success' : 'text-danger'}
+              className={bet.win_amount && bet.win_amount !== '0' ? 'text-success' : 'text-danger'}
               style={{ fontWeight: 'bold', fontSize: '1.2rem' }}
             >
-              {bet.win_amount ? `+$${bet.win_amount}` : `-$${bet.amount}`}
+              {bet.win_amount && bet.win_amount !== '0' ? `+$${bet.win_amount}` : `-$${bet.amount}`}
             </div>
           </div>
         )}
@@ -72,7 +72,7 @@ const BetCard: React.FC<{ bet: Bet }> = ({ bet }) => {
           <div>
             <div className="text-secondary">Potential Win</div>
             <div className="text-warning" style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
-              $${bet.amount * 2}
+              ${Number(bet.amount) * 2}
             </div>
           </div>
         )}
@@ -140,7 +140,7 @@ export const BetsPage: React.FC = () => {
                 <div className="text-secondary">Success Rate</div>
                 <div style={{ fontWeight: 'bold', fontSize: '1.5rem' }}>
                   {stats.completedBets > 0 
-                    ? `${Math.round((bets.filter(b => b.status === 'completed' && b.win_amount).length / stats.completedBets) * 100)}%`
+                    ? `${Math.round((bets.filter(b => b.status === 'completed' && b.win_amount && b.win_amount !== '0').length / stats.completedBets) * 100)}%`
                     : '0%'
                   }
                 </div>

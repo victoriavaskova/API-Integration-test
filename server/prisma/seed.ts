@@ -1,6 +1,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as dotenv from 'dotenv';
+import { encrypt } from '../src/utils/crypto.helper.js';
 
 // Загружаем переменные окружения
 dotenv.config();
@@ -117,7 +118,7 @@ async function main(): Promise<void> {
         where: { id: existingAccount.id },
         data: {
           externalUserId: userData.externalUserId,
-          externalSecretKey: userData.externalSecretKey,
+          externalSecretKey: encrypt(userData.externalSecretKey),
           isActive: true
         }
       });
@@ -127,7 +128,7 @@ async function main(): Promise<void> {
         data: {
           userId: user.id,
           externalUserId: userData.externalUserId,
-          externalSecretKey: userData.externalSecretKey,
+          externalSecretKey: encrypt(userData.externalSecretKey),
           isActive: true
         }
       });

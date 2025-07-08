@@ -45,7 +45,7 @@ export class ExternalApiClient {
   /**
    * Аутентификация пользователя в внешнем API
    */
-  async authenticate(externalUserId: string, secretKey: string): Promise<ExternalApiResult<AuthResponse>> {
+  async authenticate(externalUserId: string, secretKey: string, internalUserId?: number): Promise<ExternalApiResult<AuthResponse>> {
     const requestBody: AuthRequest = {};
     
     return await this.makeRequest(
@@ -54,14 +54,15 @@ export class ExternalApiClient {
       requestBody,
       externalUserId,
       secretKey,
-      'auth'
+      'auth',
+      internalUserId
     );
   }
 
   /**
    * Установка начального баланса
    */
-  async setBalance(externalUserId: string, secretKey: string, balance: number): Promise<ExternalApiResult<BalanceResponse>> {
+  async setBalance(externalUserId: string, secretKey: string, balance: number, internalUserId?: number): Promise<ExternalApiResult<BalanceResponse>> {
     const requestBody: BalanceRequest = { balance };
     
     return await this.makeRequest(
@@ -70,14 +71,15 @@ export class ExternalApiClient {
       requestBody,
       externalUserId,
       secretKey,
-      'balance'
+      'balance',
+      internalUserId
     );
   }
 
   /**
    * Получение текущего баланса
    */
-  async getBalance(externalUserId: string, secretKey: string): Promise<ExternalApiResult<BalanceResponse>> {
+  async getBalance(externalUserId: string, secretKey: string, internalUserId?: number): Promise<ExternalApiResult<BalanceResponse>> {
     const requestBody: BalanceRequest = {};
     
     return await this.makeRequest(
@@ -86,42 +88,45 @@ export class ExternalApiClient {
       requestBody,
       externalUserId,
       secretKey,
-      'balance'
+      'balance',
+      internalUserId
     );
   }
 
   /**
    * Проверка баланса
    */
-  async checkBalance(externalUserId: string, secretKey: string): Promise<ExternalApiResult<CheckBalanceResponse>> {
+  async checkBalance(externalUserId: string, secretKey: string, internalUserId?: number): Promise<ExternalApiResult<CheckBalanceResponse>> {
     return await this.makeRequest(
       'GET',
       'checkBalance',
       undefined,
       externalUserId,
       secretKey,
-      'balance'
+      'balance',
+      internalUserId
     );
   }
 
   /**
    * Получение рекомендуемой ставки
    */
-  async getRecommendedBet(externalUserId: string, secretKey: string): Promise<ExternalApiResult<RecommendedBetResponse>> {
+  async getRecommendedBet(externalUserId: string, secretKey: string, internalUserId?: number): Promise<ExternalApiResult<RecommendedBetResponse>> {
     return await this.makeRequest(
       'GET',
       'bet',
       undefined,
       externalUserId,
       secretKey,
-      'bet'
+      'bet',
+      internalUserId
     );
   }
 
   /**
    * Размещение ставки
    */
-  async placeBet(externalUserId: string, secretKey: string, amount: number): Promise<ExternalApiResult<BetResponse>> {
+  async placeBet(externalUserId: string, secretKey: string, amount: number, internalUserId?: number): Promise<ExternalApiResult<BetResponse>> {
     const requestBody: BetRequest = { bet: amount };
     
     return await this.makeRequest(
@@ -130,14 +135,15 @@ export class ExternalApiClient {
       requestBody,
       externalUserId,
       secretKey,
-      'bet'
+      'bet',
+      internalUserId
     );
   }
 
   /**
    * Получение результата ставки
    */
-  async getWinResult(externalUserId: string, secretKey: string, betId: string): Promise<ExternalApiResult<WinResponse>> {
+  async getWinResult(externalUserId: string, secretKey: string, betId: string, internalUserId?: number): Promise<ExternalApiResult<WinResponse>> {
     const requestBody: WinRequest = { bet_id: betId };
     
     return await this.makeRequest(
@@ -146,7 +152,8 @@ export class ExternalApiClient {
       requestBody,
       externalUserId,
       secretKey,
-      'win'
+      'win',
+      internalUserId
     );
   }
 
@@ -173,7 +180,8 @@ export class ExternalApiClient {
     body?: any,
     externalUserId?: string,
     secretKey?: string,
-    operation?: 'auth' | 'balance' | 'bet' | 'win' | 'health'
+    operation?: 'auth' | 'balance' | 'bet' | 'win' | 'health',
+    internalUserId?: number
   ): Promise<ExternalApiResult<T>> {
     const url = getExternalApiUrl(endpoint);
     const startTime = Date.now();
@@ -184,7 +192,7 @@ export class ExternalApiClient {
       endpoint: `/${endpoint}`,
       method,
       requestBody: body,
-      userId: externalUserId ? Number(externalUserId) : null,
+      userId: internalUserId || null, // Используем внутренний userId
       timestamp: new Date(),
       ipAddress: null
     };

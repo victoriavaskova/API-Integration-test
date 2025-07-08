@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Layout } from '@widgets/Layout';
 import { useBalance } from '@shared/hooks/useBalance';
 import type { Transaction } from '@shared/api/types';
@@ -113,13 +113,33 @@ export const TransactionsPage: React.FC = () => {
     refreshTransactions 
   } = useBalance();
 
+  const [loadingAll, setLoadingAll] = useState(false);
+
   const handleRefresh = () => {
+    console.log('🔄 Refreshing transactions...');
     refreshTransactions();
   };
 
   const handleLoadMore = () => {
     if (pagination && pagination.page < pagination.pages) {
+      console.log('📜 Loading more transactions...', { currentPage: pagination.page, nextPage: pagination.page + 1 });
       fetchTransactions(pagination.page + 1, pagination.limit);
+    }
+  };
+
+  const handleLoadAll = async () => {
+    if (!pagination || !pagination.total) return;
+    
+    console.log('📋 Loading all transactions...', { total: pagination.total });
+    setLoadingAll(true);
+    try {
+      // Load all transactions at once
+      await fetchTransactions(1, pagination.total);
+      console.log('✅ All transactions loaded successfully');
+    } catch (error) {
+      console.error('❌ Failed to load all transactions:', error);
+    } finally {
+      setLoadingAll(false);
     }
   };
 
@@ -156,9 +176,27 @@ export const TransactionsPage: React.FC = () => {
         {/* Header */}
         <div className="flex flex-between" style={{ alignItems: 'center' }}>
           <h2>💰 Transaction History</h2>
-          <button onClick={handleRefresh} className="btn" disabled={loading}>
-            {loading ? '⟳' : '🔄'} Refresh
-          </button>
+          <div className="flex gap-1">
+            <button onClick={handleRefresh} className="btn" disabled={loading}>
+              {loading ? '⟳' : '🔄'} Refresh
+            </button>
+            {pagination && pagination.total > transactions.length && (
+              <button 
+                onClick={handleLoadAll} 
+                className="btn btn-primary"
+                disabled={loadingAll}
+              >
+                {loadingAll ? (
+                  <>
+                    <div className="spinner" style={{ width: '16px', height: '16px', marginRight: '8px' }}></div>
+                    Loading...
+                  </>
+                ) : (
+                  `📋 Load All (${pagination.total})`
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Current balance */}
@@ -176,7 +214,7 @@ export const TransactionsPage: React.FC = () => {
             <div>
               <div className="text-secondary">Total Transactions</div>
               <div style={{ fontWeight: 'bold', fontSize: '1.5rem' }}>
-                {stats.totalTransactions}
+                {pagination ? pagination.total : stats.totalTransactions}
               </div>
             </div>
             <div>
@@ -222,6 +260,11 @@ export const TransactionsPage: React.FC = () => {
           <div className="grid gap-1">
             <h3>
               Transaction History ({pagination ? pagination.total : transactions.length})
+              {pagination && pagination.total > transactions.length && (
+                <span className="text-secondary" style={{ fontSize: '1rem', fontWeight: 'normal' }}>
+                  {' '}• Showing {transactions.length} of {pagination.total}
+                </span>
+              )}
             </h3>
             
             {transactions.map((transaction) => (
@@ -231,20 +274,36 @@ export const TransactionsPage: React.FC = () => {
             {/* Load more button */}
             {pagination && pagination.page < pagination.pages && (
               <div className="text-center mt-2">
-                <button 
-                  onClick={handleLoadMore} 
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <div className="spinner" style={{ width: '16px', height: '16px', marginRight: '8px' }}></div>
-                      Loading...
-                    </>
-                  ) : (
-                    `Load More (${pagination.total - transactions.length} remaining)`
-                  )}
-                </button>
+                <div className="flex gap-1" style={{ justifyContent: 'center' }}>
+                  <button 
+                    onClick={handleLoadMore} 
+                    className="btn btn-secondary"
+                    disabled={loading || loadingAll}
+                  >
+                    {loading ? (
+                      <>
+                        <div className="spinner" style={{ width: '16px', height: '16px', marginRight: '8px' }}></div>
+                        Loading...
+                      </>
+                    ) : (
+                      `Load More (${pagination.total - transactions.length} remaining)`
+                    )}
+                  </button>
+                  <button 
+                    onClick={handleLoadAll} 
+                    className="btn btn-primary"
+                    disabled={loading || loadingAll}
+                  >
+                    {loadingAll ? (
+                      <>
+                        <div className="spinner" style={{ width: '16px', height: '16px', marginRight: '8px' }}></div>
+                        Loading All...
+                      </>
+                    ) : (
+                      `Load All (${pagination.total})`
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -252,8 +311,11 @@ export const TransactionsPage: React.FC = () => {
             {pagination && (
               <div className="text-center text-secondary">
                 <p>
-                  Page {pagination.page} of {pagination.pages} • 
-                  Showing {transactions.length} of {pagination.total} transactions
+                  {pagination.total === transactions.length ? (
+                    `All ${pagination.total} transactions loaded`
+                  ) : (
+                    `Page ${pagination.page} of ${pagination.pages} • Showing ${transactions.length} of ${pagination.total} transactions`
+                  )}
                 </p>
               </div>
             )}

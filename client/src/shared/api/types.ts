@@ -1,11 +1,11 @@
 // API Response types matching server specifications
 
 export interface User {
-  id: string;
+  id: number;
   username: string;
   email?: string;
-  createdAt: string;
-  updatedAt: string;
+  isAdmin?: boolean;
+  permissions?: string[];
 }
 
 export interface AuthResponse {
@@ -15,9 +15,9 @@ export interface AuthResponse {
 
 export interface Bet {
   id: string;
-  amount: number;
+  amount: string; // Server returns amount as string
   status: 'pending' | 'completed' | 'cancelled';
-  win_amount?: number;
+  win_amount?: string; // Server returns win_amount as string
   created_at: string;
   completed_at?: string;
 }
@@ -74,6 +74,7 @@ export interface ApiError {
 // Request types
 export interface LoginRequest {
   username: string;
+  email?: string;
 }
 
 export interface PlaceBetRequest {

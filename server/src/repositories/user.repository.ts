@@ -15,6 +15,7 @@ export interface UserRepository extends BaseRepository<User, CreateUserData, Upd
   findWithExternalAccount(userId: number): Promise<UserWithRelations | null>;
   findByExternalUserId(externalUserId: string): Promise<User | null>;
   updateLastLogin(userId: number): Promise<void>;
+  updateEmail(userId: number, email: string): Promise<void>;
   
   // Методы для работы с внешними аккаунтами
   createExternalAccount(data: CreateExternalApiAccountData): Promise<ExternalApiAccount>;
@@ -114,6 +115,13 @@ export class PrismaUserRepository implements UserRepository {
     await this.prisma.user.update({
       where: { id: userId },
       data: { lastLogin: new Date() }
+    });
+  }
+
+  async updateEmail(userId: number, email: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { email }
     });
   }
 

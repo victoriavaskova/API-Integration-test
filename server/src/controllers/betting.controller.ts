@@ -59,7 +59,7 @@ export class BettingController {
       // Формат ответа согласно README: { id, amount, status, created_at }
       const betData = {
         id: formatId(result.data!.id),
-        amount: result.data!.amount,
+        amount: result.data!.amount.toString(), // Ensure amount is string as expected by client
         status: result.data!.status.toLowerCase(),
         created_at: formatDate(new Date(result.data!.created_at))
       };
@@ -77,7 +77,7 @@ export class BettingController {
   });
 
   /**
-   * GET /api/betting/result/:betId
+   * GET /api/bets/result/:id
    * Получение результата ставки
    */
   getBetResult = asyncErrorHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -90,14 +90,14 @@ export class BettingController {
       return;
     }
 
-    const betId = parseInt(req.params.betId, 10);
+    const betId = parseInt(req.params.id, 10);
     if (isNaN(betId) || betId <= 0) {
       res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
           message: 'Invalid bet ID',
-          details: { field: 'betId', received: req.params.betId }
+          details: { field: 'betId', received: req.params.id }
         }
       });
       return;
@@ -106,10 +106,17 @@ export class BettingController {
     const result = await this.bettingService.getBetResult(user.userId, betId);
 
     if (result.success) {
-      res.status(200).json({
-        success: true,
-        data: result.data
-      });
+      // Return in the same format as getBetById for consistency
+      const betData = {
+        id: formatId(result.data!.id),
+        amount: result.data!.amount.toString(),
+        status: result.data!.status.toLowerCase(),
+        win_amount: result.data!.win_amount ? result.data!.win_amount.toString() : undefined,
+        created_at: result.data!.created_at,
+        completed_at: result.data!.completed_at || undefined
+      };
+      
+      res.status(200).json(betData);
     } else {
       const statusCode = result.error!.code === 'BET_NOT_FOUND' ? 404 : 502;
       res.status(statusCode).json({
@@ -145,12 +152,12 @@ export class BettingController {
       const betsData = {
         bets: result.data!.map((bet: any) => ({
           id: formatId(bet.id),
-          amount: bet.amount,
+          amount: Number(bet.amount).toString(), // Ensure amount is string as expected by client
           status: bet.status.toLowerCase(),
-          win_amount: bet.winAmount || undefined,
+          win_amount: bet.winAmount ? Number(bet.winAmount).toString() : undefined,
           created_at: formatDate(bet.createdAt),
           completed_at: bet.completedAt ? formatDate(bet.completedAt) : undefined
-        })).filter((bet: any) => bet.win_amount !== undefined || bet.completed_at !== undefined)
+        }))
       };
       sendSuccessResponse(res, 200, betsData);
     } else {
@@ -181,9 +188,9 @@ export class BettingController {
       // Формат ответа согласно README
       const betData = {
         id: formatId(result.data!.id),
-        amount: result.data!.amount,
+        amount: Number(result.data!.amount).toString(),
         status: result.data!.status.toLowerCase(),
-        win_amount: result.data!.winAmount || undefined,
+        win_amount: result.data!.winAmount ? Number(result.data!.winAmount).toString() : undefined,
         created_at: formatDate(result.data!.createdAt),
         completed_at: result.data!.completedAt ? formatDate(result.data!.completedAt) : undefined
       };

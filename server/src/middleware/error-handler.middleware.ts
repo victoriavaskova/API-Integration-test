@@ -42,7 +42,7 @@ export interface ErrorLogInfo {
  * Главный middleware для обработки ошибок
  */
 export function errorHandlerMiddleware() {
-  return (error: any, req: Request, res: Response, next: NextFunction): void => {
+  return (error: any, req: Request, res: Response, _next: NextFunction): void => {
     // Генерируем уникальный ID запроса для трекинга
     const requestId = generateRequestId();
     
@@ -86,7 +86,7 @@ export function asyncErrorHandler(fn: Function) {
  * Middleware для обработки 404 ошибок
  */
 export function notFoundHandler() {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const error = new Error(`Route not found: ${req.method} ${req.path}`);
     error.name = 'NotFoundError';
     next(error);
@@ -315,10 +315,10 @@ export function requestLoggingMiddleware() {
 
     // Перехватываем завершение ответа
     const originalEnd = res.end;
-    res.end = function(chunk?: any, encoding?: any) {
+    res.end = function(chunk?: any, encoding?: any): typeof res {
       const duration = Date.now() - startTime;
       console.log(`[RESPONSE] ${requestId} ${res.statusCode} ${duration}ms`);
-      originalEnd.call(this, chunk, encoding);
+      return originalEnd.call(this, chunk, encoding);
     };
 
     next();

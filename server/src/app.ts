@@ -11,6 +11,7 @@ import { createServices } from './services/index.js';
 import { createRepositories } from './repositories/index.js';
 import { createApiRoutes } from './routes/index.js';
 import { initializeGlobalAuthService } from './middleware/auth.middleware.js';
+import { globalLimiter } from './middleware/rate-limiter.middleware.js';
 
 // Load environment variables
 dotenv.config();
@@ -23,8 +24,9 @@ app.use(helmet());
 
 // CORS Configuration - Support both development ports
 const corsOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:3000',
-  'http://localhost:3000',  // Client development port
+  process.env.CLIENT_URL || 'http://localhost:3001',
+  'http://localhost:3001',  // Current client development port
+  'http://localhost:3000',  // Backup port
   'http://localhost:5173',  // Vite default port (backup)
   'http://localhost:8080'   // Alternative port
 ];
@@ -50,6 +52,9 @@ app.use(cors({
 app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Apply global rate limiting
+app.use(globalLimiter);
 
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {

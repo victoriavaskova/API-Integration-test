@@ -13,10 +13,15 @@ export const useBetting = () => {
     setLoading(true);
     setError(null);
     
+    console.log('🎯 Fetching bets...');
+    
     try {
+      console.log('📤 API Call: GET /bets');
       const response = await apiClient.getBets();
+      console.log('✅ Bets received', { count: response.bets?.length });
       setBets(response.bets || []); // Ensure it's always an array
     } catch (error: any) {
+      console.error('❌ Failed to fetch bets', error);
       const apiError = apiClient.handleError(error);
       setError(apiError.message);
       setBets([]); // Reset to empty array on error
@@ -26,11 +31,15 @@ export const useBetting = () => {
   };
 
   const fetchRecommendedBet = async () => {
+    console.log('💡 Fetching recommended bet...');
+    
     try {
+      console.log('📤 API Call: GET /bets/recommended');
       const response = await apiClient.getRecommendedBet();
+      console.log('✅ Recommended bet received', response);
       setRecommendedAmount(response.recommended_amount || 3); // Default to 3 if not available
     } catch (error: any) {
-      console.warn('Failed to fetch recommended bet:', error);
+      console.warn('⚠️ Failed to fetch recommended bet, using fallback', error);
       setRecommendedAmount(3); // Default fallback amount
     }
   };
@@ -39,14 +48,19 @@ export const useBetting = () => {
     setPlacingBet(true);
     setError(null);
     
+    console.log('🎲 Placing bet...', { amount });
+    
     try {
+      console.log('📤 API Call: POST /bets', { amount });
       const response = await apiClient.placeBet({ amount });
+      console.log('✅ Bet placed successfully', response);
       
       // Add new bet to the beginning of the list
       setBets(prev => [response, ...prev]);
       
       return response;
     } catch (error: any) {
+      console.error('❌ Failed to place bet', error);
       const apiError = apiClient.handleError(error);
       setError(apiError.message);
       throw error;
@@ -59,14 +73,43 @@ export const useBetting = () => {
     setLoading(true);
     setError(null);
     
+    console.log('🔍 Fetching specific bet...', { id });
+    
     try {
+      console.log('📤 API Call: GET /bets/:id', { id });
       const response = await apiClient.getBet(id);
+      console.log('✅ Bet details received', response);
       
       // Update bet in the list if it exists
       setBets(prev => prev.map(bet => bet.id === id ? response : bet));
       
       return response;
     } catch (error: any) {
+      console.error('❌ Failed to fetch bet details', error);
+      const apiError = apiClient.handleError(error);
+      setError(apiError.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkBetResult = async (betId: string) => {
+    setLoading(true);
+    setError(null);
+    
+    console.log('🔍 API Call: Checking bet result', { betId, endpoint: `/api/bets/result/${betId}` });
+    
+    try {
+      const response = await apiClient.checkBetResult(betId);
+      console.log('📊 API Response: Bet result received', response);
+      
+      // Update bet in the list with the result
+      setBets(prev => prev.map(bet => bet.id === betId ? response : bet));
+      
+      return response;
+    } catch (error: any) {
+      console.error('❌ API Error: Failed to check bet result', error);
       const apiError = apiClient.handleError(error);
       setError(apiError.message);
       throw error;
@@ -99,9 +142,9 @@ export const useBetting = () => {
     completedBets: bets.filter(bet => bet.status === 'completed').length,
     pendingBets: bets.filter(bet => bet.status === 'pending').length,
     totalWinnings: bets
-      .filter(bet => bet.status === 'completed' && bet.win_amount)
-      .reduce((sum, bet) => sum + (bet.win_amount || 0), 0),
-    totalWagered: bets.reduce((sum, bet) => sum + bet.amount, 0),
+      .filter(bet => bet.status === 'completed' && bet.win_amount && bet.win_amount !== '0')
+      .reduce((sum, bet) => sum + Number(bet.win_amount || 0), 0),
+    totalWagered: bets.reduce((sum, bet) => sum + Number(bet.amount), 0),
   };
 
   return {
@@ -115,6 +158,7 @@ export const useBetting = () => {
     fetchRecommendedBet,
     placeBet,
     getBet,
+    checkBetResult,
     refreshBets,
     refreshRecommendedBet,
     clearError,

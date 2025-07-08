@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { BalanceController } from '../controllers/balance.controller.js';
 import { authenticateUser } from '../middleware/auth.middleware.js';
+import { apiLimiter } from '../middleware/rate-limiter.middleware.js';
 
 export function createBalanceRoutes(balanceController: BalanceController): Router {
   const router = Router();
@@ -29,7 +30,7 @@ export function createBalanceRoutes(balanceController: BalanceController): Route
    *                   format: date-time
    *                   example: "2023-06-15T12:30:00Z"
    */
-  router.get('/', authenticateUser, balanceController.getCurrentBalance);
+  router.get('/', apiLimiter, authenticateUser, balanceController.getBalance);
 
   /**
    * @swagger
@@ -107,7 +108,7 @@ export function createBalanceRoutes(balanceController: BalanceController): Route
    *                       type: number
    *                       example: 2
    */
-  router.get('/transactions', authenticateUser, balanceController.getTransactions);
+  router.get('/transactions', apiLimiter, authenticateUser, balanceController.getTransactions);
 
   return router;
 } 

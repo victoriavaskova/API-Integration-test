@@ -8,9 +8,12 @@ export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const { balance, refreshBalance } = useBalance();
   const { 
+    bets,
     recommendedAmount, 
     placeBet, 
+    checkBetResult,
     placingBet, 
+    loading,
     error, 
     clearError, 
     stats,
@@ -19,6 +22,8 @@ export const DashboardPage: React.FC = () => {
   
   const [customAmount, setCustomAmount] = useState<number>(recommendedAmount || 1);
   const [useRecommended, setUseRecommended] = useState(true);
+  const [resultMessage, setResultMessage] = useState<string>('');
+  const [checkingResult, setCheckingResult] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (recommendedAmount > 0) {
@@ -30,27 +35,71 @@ export const DashboardPage: React.FC = () => {
     const amount = useRecommended ? recommendedAmount : customAmount;
     
     if (amount < 1 || amount > 5) {
+      console.log('❌ Invalid bet amount:', amount);
       return;
     }
 
     if (amount > balance) {
+      console.log('❌ Insufficient balance. Amount:', amount, 'Balance:', balance);
       return;
     }
 
     clearError();
+    setResultMessage('');
+
+    console.log('🎲 Placing bet...', { amount, user: user?.username });
 
     try {
-      await placeBet(amount);
-      // Refresh data after successful bet
-      await Promise.all([refreshBalance(), refreshBets()]);
-    } catch (error) {
+      const result = await placeBet(amount);
+      console.log('✅ Bet placed successfully:', result);
+      
+      // Refresh balance after successful bet placement
+      // We don't need to refresh bets because useBetting hook already optimistically updates the state
+      await refreshBalance();
+      console.log('🔄 Balance refreshed after bet placement');
+      
+      // No success message - user will check result separately
+    } catch (error: any) {
+      console.error('❌ Error placing bet:', error);
       // Error is handled by useBetting hook
+    }
+  };
+
+  const handleCheckResult = async (betId: string) => {
+    setCheckingResult(betId);
+    setResultMessage('');
+    
+    console.log('🔍 Checking bet result for ID:', betId);
+    
+    try {
+      const result = await checkBetResult(betId);
+      console.log('📊 Bet result received:', result);
+      
+      // Refresh data after checking result (balance updated here if won)
+      await Promise.all([refreshBalance(), refreshBets()]);
+      console.log('🔄 Data refreshed after result check');
+      
+      if (result.status === 'completed') {
+        if (result.win_amount && Number(result.win_amount) > 0) {
+          setResultMessage(`🎉 Congratulations! You won $${result.win_amount}! Your bet of $${result.amount} paid out 2x.`);
+          console.log('🎉 Player won!', { amount: result.amount, winAmount: result.win_amount });
+        } else {
+          setResultMessage(`😔 Sorry, you lost this time. Your bet of $${result.amount} didn't win. Better luck next time!`);
+          console.log('😔 Player lost.', { amount: result.amount });
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ Error checking bet result:', error);
+      setResultMessage(`❌ Error checking result: ${error.message || 'Unknown error'}`);
+    } finally {
+      setCheckingResult(null);
     }
   };
 
   const betAmount = useRecommended ? recommendedAmount : customAmount;
   const canPlaceBet = betAmount >= 1 && betAmount <= 5 && betAmount <= balance && !placingBet;
-
+  const pendingBets = bets.filter(bet => bet.status === 'pending');
+  
   return (
     <Layout>
       <div className="grid gap-2">
@@ -62,6 +111,13 @@ export const DashboardPage: React.FC = () => {
             Place your bets wisely!
           </p>
         </div>
+
+        {/* Result message */}
+        {resultMessage && (
+          <div className={`card ${resultMessage.includes('🎉') ? 'bg-success' : resultMessage.includes('😔') ? 'bg-warning' : resultMessage.includes('❌') ? 'bg-danger' : 'bg-info'}`}>
+            <p style={{ margin: 0, color: 'white', fontWeight: 'bold' }}>{resultMessage}</p>
+          </div>
+        )}
 
         {/* Stats overview */}
         <div className="grid grid-2 gap-2">
@@ -85,7 +141,13 @@ export const DashboardPage: React.FC = () => {
 
         {/* Betting section */}
         <div className="card">
-          <h3>Place a Bet</h3>
+          <h3>🎯 Place a New Bet</h3>
+          
+          <div className="card" style={{ backgroundColor: 'var(--color-background-secondary)', marginBottom: '1rem', padding: '1rem' }}>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+              <strong>How it works:</strong> Place your bet first (balance will be deducted), then check the result separately using the "Check Result" button below.
+            </p>
+          </div>
           
           <div className="mb-2">
             <label className="flex gap-1" style={{ alignItems: 'center', marginBottom: '1rem' }}>
@@ -135,7 +197,7 @@ export const DashboardPage: React.FC = () => {
                   Placing...
                 </>
               ) : (
-                `Bet $${betAmount}`
+                `🎲 Place Bet $${betAmount}`
               )}
             </button>
             
@@ -152,6 +214,51 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Pending bets section */}
+        {pendingBets.length > 0 && (
+          <div className="card">
+            <h3>🔍 Check Pending Bet Results</h3>
+            <p className="text-secondary mb-2">Your bets are placed and waiting for results. Click "Check Result" to see if you won or lost:</p>
+            
+            <div className="grid gap-1">
+              {pendingBets.map((bet) => (
+                <div key={bet.id} className="flex flex-between" style={{ 
+                  alignItems: 'center', 
+                  padding: '1rem', 
+                  border: '1px solid var(--color-border)', 
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--color-background-secondary)'
+                }}>
+                  <div>
+                    <strong>Bet #{bet.id}</strong> - ${bet.amount}
+                    <div className="text-secondary" style={{ fontSize: '0.9rem' }}>
+                      Placed: {new Date(bet.created_at).toLocaleString()}
+                    </div>
+                    <div className="text-warning" style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>
+                      Potential win: ${Number(bet.amount) * 2}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleCheckResult(bet.id)}
+                    className="btn btn-primary"
+                    disabled={checkingResult === bet.id}
+                    style={{ minWidth: '120px' }}
+                  >
+                    {checkingResult === bet.id ? (
+                      <>
+                        <div className="spinner" style={{ width: '16px', height: '16px', marginRight: '8px' }}></div>
+                        Checking...
+                      </>
+                    ) : (
+                      '🎲 Check Result'
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Quick info */}
         <div className="card">

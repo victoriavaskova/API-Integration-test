@@ -11,13 +11,16 @@ import type {
   PlaceBetRequest 
 } from './types';
 
-// Server wrapper type for all responses
+// Server response types - some endpoints return wrapped responses, others return direct data
 type WrappedResponse<T> = {
   success: boolean;
   data?: T;
   error?: any;
   pagination?: any;
 };
+
+// Direct response type for endpoints that don't wrap their data
+type DirectResponse<T> = T;
 
 class ApiClient {
   private client: AxiosInstance;
@@ -55,68 +58,81 @@ class ApiClient {
     );
   }
 
-  // Helper to unwrap server responses
-  private unwrapResponse<T>(response: AxiosResponse<WrappedResponse<T>>): T {
-    if (response.data.success && response.data.data !== undefined) {
-      return response.data.data;
+  // Helper to handle server responses (both direct and wrapped)
+  private handleResponse<T>(response: AxiosResponse): T {
+    const data = response.data;
+    
+    // Check if it's a wrapped response with success field
+    if (data && typeof data === 'object' && 'success' in data) {
+      if (data.success && data.data !== undefined) {
+        return data.data;
+      }
+      throw new Error(data.error?.message || 'API request failed');
     }
     
-    // If response failed, throw the error
-    const errorMessage = response.data.error?.message || 'Unknown error occurred';
-    throw new Error(errorMessage);
+    // Direct response (like auth/login, balance, transactions, bets)
+    return data as T;
   }
 
   // Auth endpoints
   async login(data: LoginRequest): Promise<AuthResponse> {
-    const response: AxiosResponse<WrappedResponse<AuthResponse>> = await this.client.post('/auth/login', data);
-    return this.unwrapResponse(response);
+    const response = await this.client.post('/auth/login', data);
+    return this.handleResponse<AuthResponse>(response);
   }
 
   async refreshToken(token: string): Promise<AuthResponse> {
-    const response: AxiosResponse<WrappedResponse<AuthResponse>> = await this.client.post('/auth/refresh', { token });
-    return this.unwrapResponse(response);
+    const response = await this.client.post('/auth/refresh', { token });
+    return this.handleResponse<AuthResponse>(response);
   }
 
   async logout(): Promise<void> {
-    const response: AxiosResponse<WrappedResponse<any>> = await this.client.post('/auth/logout');
-    this.unwrapResponse(response);
+    const response = await this.client.post('/auth/logout');
+    this.handleResponse<void>(response);
   }
 
   async getCurrentUser(): Promise<any> {
-    const response: AxiosResponse<WrappedResponse<any>> = await this.client.get('/auth/me');
-    return this.unwrapResponse(response);
+    const response = await this.client.get('/auth/me');
+    return this.handleResponse<any>(response);
   }
 
   // Balance endpoints
   async getBalance(): Promise<BalanceResponse> {
-    const response: AxiosResponse<WrappedResponse<BalanceResponse>> = await this.client.get('/balance');
-    return this.unwrapResponse(response);
+    const response = await this.client.get('/balance');
+    return this.handleResponse<BalanceResponse>(response);
   }
 
   async getTransactions(page: number = 1, limit: number = 10): Promise<TransactionsResponse> {
-    const response: AxiosResponse<WrappedResponse<TransactionsResponse>> = await this.client.get(`/transactions?page=${page}&limit=${limit}`);
-    return this.unwrapResponse(response);
+    const response = await this.client.get(`/transactions?page=${page}&limit=${limit}`);
+    return this.handleResponse<TransactionsResponse>(response);
   }
 
   // Betting endpoints
   async getBets(): Promise<BetsResponse> {
-    const response: AxiosResponse<WrappedResponse<BetsResponse>> = await this.client.get('/bets');
-    return this.unwrapResponse(response);
+    const response = await this.client.get('/bets');
+    return this.handleResponse<BetsResponse>(response);
   }
 
   async getBet(id: string): Promise<Bet> {
-    const response: AxiosResponse<WrappedResponse<Bet>> = await this.client.get(`/bets/${id}`);
-    return this.unwrapResponse(response);
+    const response = await this.client.get(`/bets/${id}`);
+    return this.handleResponse<Bet>(response);
   }
 
   async placeBet(data: PlaceBetRequest): Promise<Bet> {
-    const response: AxiosResponse<WrappedResponse<Bet>> = await this.client.post('/bets', data);
-    return this.unwrapResponse(response);
+    const response = await this.client.post('/bets', data);
+    return this.handleResponse<Bet>(response);
   }
 
   async getRecommendedBet(): Promise<RecommendedBetResponse> {
-    const response: AxiosResponse<WrappedResponse<RecommendedBetResponse>> = await this.client.get('/bets/recommended');
-    return this.unwrapResponse(response);
+    const response = await this.client.get('/bets/recommended');
+    return this.handleResponse<RecommendedBetResponse>(response);
+  }
+
+  async checkBetResult(betId: string): Promise<Bet> {
+    console.log('🎲 API Call: Check bet result', { betId, endpoint: `/bets/result/${betId}` });
+    const response = await this.client.get(`/bets/result/${betId}`);
+    const result = this.handleResponse<Bet>(response);
+    console.log('📊 API Response: Bet result', result);
+    return result;
   }
 
   // Error handling helper

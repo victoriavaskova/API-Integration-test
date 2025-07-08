@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { BettingController } from '../controllers/betting.controller.js';
 import { authenticateUser } from '../middleware/auth.middleware.js';
+import { apiLimiter } from '../middleware/rate-limiter.middleware.js';
 
 export function createBettingRoutes(bettingController: BettingController): Router {
   const router = Router();
@@ -48,7 +49,7 @@ export function createBettingRoutes(bettingController: BettingController): Route
    *                         format: date-time
    *                         example: "2023-06-15T10:31:00Z"
    */
-  router.get('/', authenticateUser, bettingController.getUserBets);
+  router.get('/', apiLimiter, authenticateUser, bettingController.getUserBets);
 
   /**
    * @swagger
@@ -70,7 +71,7 @@ export function createBettingRoutes(bettingController: BettingController): Route
    *                   type: number
    *                   example: 3
    */
-  router.get('/recommended', authenticateUser, bettingController.getRecommendedBet);
+  router.get('/recommended', apiLimiter, authenticateUser, bettingController.getRecommendedBet);
 
   /**
    * @swagger
@@ -116,7 +117,53 @@ export function createBettingRoutes(bettingController: BettingController): Route
    *       404:
    *         description: Ставка не найдена
    */
-  router.get('/:id', authenticateUser, bettingController.getBetById);
+  router.get('/:id', apiLimiter, authenticateUser, bettingController.getBetById);
+
+  /**
+   * @swagger
+   * /api/bets/result/{id}:
+   *   get:
+   *     summary: Проверка результата ставки
+   *     tags: [Bets]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: ID ставки для проверки результата
+   *     responses:
+   *       200:
+   *         description: Результат ставки
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 id:
+   *                   type: string
+   *                   example: "123"
+   *                 amount:
+   *                   type: number
+   *                   example: 3
+   *                 status:
+   *                   type: string
+   *                   example: "completed"
+   *                 win_amount:
+   *                   type: number
+   *                   example: 6
+   *                 created_at:
+   *                   type: string
+   *                   format: date-time
+   *                 completed_at:
+   *                   type: string
+   *                   format: date-time
+   *       404:
+   *         description: Ставка не найдена
+   */
+  router.get('/result/:id', apiLimiter, authenticateUser, bettingController.getBetResult);
 
   /**
    * @swagger
@@ -178,7 +225,7 @@ export function createBettingRoutes(bettingController: BettingController): Route
    *                   type: string
    *                   example: "Invalid bet amount. Must be between 1 and 5."
    */
-  router.post('/', authenticateUser, bettingController.placeBet);
+  router.post('/', apiLimiter, authenticateUser, bettingController.placeBet);
 
   return router;
 } 

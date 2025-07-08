@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@shared/hooks/useAuth';
-import { useBalance } from '@shared/hooks/useBalance';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,7 +9,6 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const { user, logout } = useAuth();
-  const { balance } = useBalance();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -33,9 +31,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
           
           <div className="flex gap-2" style={{ alignItems: 'center' }}>
-            <div className="text-success" style={{ fontWeight: 'bold' }}>
-              Balance: ${balance}
-            </div>
             <button onClick={handleLogout} className="btn btn-danger">
               Logout
             </button>

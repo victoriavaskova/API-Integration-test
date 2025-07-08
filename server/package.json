@@ -10,7 +10,7 @@
     "build": "tsc",
     "build:run": "tsc && node dist/app.js",
     "start": "node --env-file .env dist/app.js",
-    "dev": "nodemon --exec \"npm run build:run\" src/app.ts",
+    "dev": "nodemon --watch src --ext ts --exec \"npm run build && node dist/app.js\"",
     "dev:simple": "node --loader ts-node/esm src/app.ts",
     "test": "jest",
     "test:watch": "jest --watch",

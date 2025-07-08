@@ -4,6 +4,7 @@ import { useAuth } from '@shared/hooks/useAuth';
 
 export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, error, clearError } = useAuth();
   const navigate = useNavigate();
@@ -11,7 +12,7 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!username.trim()) {
+    if (!username.trim() || !email.trim()) {
       return;
     }
 
@@ -19,7 +20,7 @@ export const LoginPage: React.FC = () => {
     clearError();
 
     try {
-      await login({ username: username.trim() });
+      await login(username.trim(), email.trim());
       navigate('/dashboard');
     } catch (error) {
       // Error is handled by useAuth hook
@@ -27,6 +28,12 @@ export const LoginPage: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  const isValidEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  const isFormValid = username.trim() && email.trim() && isValidEmail(email.trim());
 
   return (
     <div className="flex flex-center" style={{ minHeight: '100vh' }}>
@@ -40,7 +47,7 @@ export const LoginPage: React.FC = () => {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="username" className="form-label">
-              Username
+              Username *
             </label>
             <input
               type="text"
@@ -51,7 +58,29 @@ export const LoginPage: React.FC = () => {
               placeholder="Enter your username"
               disabled={isSubmitting}
               autoFocus
+              required
             />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="email" className="form-label">
+              Email *
+            </label>
+            <input
+              type="email"
+              id="email"
+              className="form-input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email address"
+              disabled={isSubmitting}
+              required
+            />
+            {email && !isValidEmail(email) && (
+              <div className="text-danger" style={{ fontSize: '0.9rem', marginTop: '0.25rem' }}>
+                Please enter a valid email address
+              </div>
+            )}
           </div>
 
           {error && (
@@ -64,7 +93,7 @@ export const LoginPage: React.FC = () => {
             type="submit"
             className="btn btn-primary"
             style={{ width: '100%' }}
-            disabled={isSubmitting || !username.trim()}
+            disabled={isSubmitting || !isFormValid}
           >
             {isSubmitting ? (
               <>
@@ -76,12 +105,6 @@ export const LoginPage: React.FC = () => {
             )}
           </button>
         </form>
-
-        <div className="mt-2 text-center">
-          <p className="text-secondary" style={{ fontSize: '0.9rem' }}>
-            Available test users: user1, user2, user3, user4, user5
-          </p>
-        </div>
       </div>
     </div>
   );
