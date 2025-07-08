@@ -46,4 +46,13 @@ export function decrypt(encryptedText: string): string {
   decipher.setAuthTag(authTag);
   const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
   return decrypted.toString('utf8');
-} 
+}
+
+export function createSignature(body: Record<string, any> | null, secretKey: string): string {
+  // Исправляем генерацию подписи для запросов без тела (null)
+  const payload = JSON.stringify(body || {});
+
+  const hmac = crypto.createHmac('sha512', secretKey);
+  hmac.update(payload);
+  return hmac.digest('hex');
+}

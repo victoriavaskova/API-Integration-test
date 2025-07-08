@@ -1,6 +1,6 @@
 import { Decimal } from '@prisma/client/runtime/library';
 import { BaseServiceImpl, type ServiceResult, SERVICE_ERROR_CODES } from './base.service.js';
-// import type { UserBalance } from '../types/database.js';
+import { decrypt } from '../utils/crypto.helper.js';
 import { TransactionType } from '../types/database.js';
 
 export interface BalanceService {
@@ -134,7 +134,7 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
       // Аутентификация в внешнем API
       const authResult = await this.externalApiClient.authenticate(
         externalAccount.externalUserId,
-        externalAccount.externalSecretKey,
+        decrypt(externalAccount.externalSecretKey),
         userId
       );
 
@@ -145,7 +145,7 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
       // Получаем баланс от внешнего API (POST /api/balance без тела)
       const externalBalanceResult = await this.externalApiClient.getBalance(
         externalAccount.externalUserId,
-        externalAccount.externalSecretKey,
+        decrypt(externalAccount.externalSecretKey),
         userId
       );
 
@@ -162,11 +162,11 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
 
       if (localBalance) {
         internalBalance = Number(localBalance.balance);
-        // Обновляем внешний баланс в БД
-        if (externalBalance !== null) {
+        // ИСПРАВЛЕНИЕ: Обновляем внешний баланс в БД только при успешном получении
+        if (externalBalanceResult.success && externalBalance !== null) {
           await this.repositories.balance.updateExternalBalance(userId, new Decimal(externalBalance));
         }
-      } else if (externalBalance !== null) {
+      } else if (externalBalanceResult.success && externalBalance !== null) {
         // Если локального баланса нет, но есть внешний - создаем локальный
         const createdBalance = await this.repositories.balance.create({
           userId,
