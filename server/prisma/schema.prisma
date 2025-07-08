@@ -11,6 +11,7 @@ model User {
   id         Int      @id @default(autoincrement())
   username   String   @unique
   email      String?  @unique
+  isAdmin    Boolean  @default(false)
   lastLogin  DateTime? @map("last_login")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")

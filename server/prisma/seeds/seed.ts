@@ -7,6 +7,7 @@ import { encrypt } from '../../src/utils/crypto.helper.js';
 dotenv.config();
 
 const prisma = new PrismaClient();
+const NUMBER_OF_USERS = 5; // Количество обычных пользователей для создания
 
 // Валидация переменных окружения
 function validateEnvironmentVariables(): void {
@@ -41,55 +42,34 @@ async function main(): Promise<void> {
   // Проверяем переменные окружения
   validateEnvironmentVariables();
 
-  // Один внешний аккаунт для всех пользователей
-  const SHARED_EXTERNAL_ACCOUNT = {
-    externalUserId: process.env.EXTERNAL_USER_ID!,
-    externalSecretKey: process.env.EXTERNAL_SECRET_KEY!
-  };
+  const usersData: Array<{
+    username: string;
+    email: string;
+    externalUserId: string;
+    externalSecretKey: string;
+  }> = [];
 
-  // Создать 5 пользователей, все используют один внешний аккаунт
-  const users = [
-    {
-      username: 'user1',
-      email: 'user1@example.com',
-      externalUserId: SHARED_EXTERNAL_ACCOUNT.externalUserId,
-      externalSecretKey: SHARED_EXTERNAL_ACCOUNT.externalSecretKey
-    },
-    {
-      username: 'user2',
-      email: 'user2@example.com',
-      externalUserId: SHARED_EXTERNAL_ACCOUNT.externalUserId,
-      externalSecretKey: SHARED_EXTERNAL_ACCOUNT.externalSecretKey
-    },
-    {
-      username: 'user3',
-      email: 'user3@example.com',
-      externalUserId: SHARED_EXTERNAL_ACCOUNT.externalUserId,
-      externalSecretKey: SHARED_EXTERNAL_ACCOUNT.externalSecretKey
-    },
-    {
-      username: 'user4',
-      email: 'user4@example.com',
-      externalUserId: SHARED_EXTERNAL_ACCOUNT.externalUserId,
-      externalSecretKey: SHARED_EXTERNAL_ACCOUNT.externalSecretKey
-    },
-    {
-      username: 'user5',
-      email: 'user5@example.com',
-      externalUserId: SHARED_EXTERNAL_ACCOUNT.externalUserId,
-      externalSecretKey: SHARED_EXTERNAL_ACCOUNT.externalSecretKey
-    },
-    {
-      username: 'admin',
-      email: 'admin@example.com',
-      externalUserId: process.env.ADMIN_USER_ID!,
-      externalSecretKey: process.env.ADMIN_USER_SECRET!
-    }
-  ];
+  // Добавляем обычных пользователей
+  for (let i = 1; i <= NUMBER_OF_USERS; i++) {
+    usersData.push({
+      username: `user${i}`,
+      email: `user${i}@example.com`,
+      externalUserId: process.env.EXTERNAL_USER_ID!,
+      externalSecretKey: process.env.EXTERNAL_SECRET_KEY!,
+    });
+  }
 
-  console.log('👤 Creating users...');
+  // Добавляем админа
+  usersData.push({
+    username: 'admin',
+    email: 'admin@example.com',
+    externalUserId: process.env.ADMIN_USER_ID!,
+    externalSecretKey: process.env.ADMIN_USER_SECRET!,
+  });
+
+  console.log(`👤 Creating ${usersData.length} users...`);
   
-  for (const userData of users) {
+  for (const userData of usersData) {
     // Создаем пользователя
     const user = await prisma.user.upsert({
       where: { username: userData.username },
@@ -249,61 +229,42 @@ async function main(): Promise<void> {
       ipAddress: '127.0.0.1'
     },
     {
-      endpoint: '/api/balance',
+      endpoint: '/api/bets',
       method: 'POST',
-      requestBody: { balance: 1000 },
-      responseBody: { balance: 1000, message: 'Balance set successfully' },
-      statusCode: 200,
-      requestDurationMs: 85,
-      ipAddress: '127.0.0.1'
-    },
-    {
-      endpoint: '/api/bet',
-      method: 'GET',
-      requestBody: Prisma.JsonNull,
-      responseBody: { bet: 3 },
-      statusCode: 200,
-      requestDurationMs: 120,
+      userId: 1,
+      requestBody: { amount: 5 },
+      responseBody: { bet_id: 'bet-001' },
+      statusCode: 201,
+      requestDurationMs: 250,
       ipAddress: '127.0.0.1'
     }
   ];
 
   for (const logData of sampleApiLogs) {
     await prisma.apiLog.create({
-      data: {
-        userId: firstUser?.id || null,
-        ...logData
-      }
+      data: logData as Prisma.ApiLogCreateInput
     });
   }
 
-  console.log('✅ Database seeding completed successfully!');
+  console.log(`📝 Created ${sampleApiLogs.length} sample API logs.`);
+
+  console.log('✅ Seeding finished successfully!');
   console.log('');
   console.log('📊 Summary:');
-  console.log(`👤 Users created: ${users.length}`);
-  console.log(`🔑 External accounts created: ${users.length}`);
-  console.log(`💰 User balances created: ${users.length}`);
+  console.log(`👤 Users created: ${usersData.length}`);
+  console.log(`🔑 External accounts created: ${usersData.length}`);
+  console.log(`💰 User balances created: ${usersData.length}`);
   console.log(`🎲 Sample bets created: 3`);
   console.log(`📝 Sample API logs created: ${sampleApiLogs.length}`);
-  console.log('');
-  console.log('🎯 Test credentials:');
-  console.log('Username: user1, user2, user3, user4, user5, admin');
-  console.log('Initial balance: 1000 for all users');
-  console.log('');
-  console.log('🔗 External API Integration:');
-  console.log(`External User ID: ${process.env.EXTERNAL_USER_ID}`);
-  console.log('All internal users (user1-user5) share this external account');
-  console.log('Admin has separate external account for testing');
-  console.log('');
-  console.log('🚀 You can now start the server and test the API!');
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect();
+  .catch((e) => {
+    console.error('❌ An error occurred during seeding:');
+    console.error(e);
+    process.exit(1);
   })
-  .catch(async (e) => {
-    console.error('❌ Error during seeding:', e);
+  .finally(async () => {
     await prisma.$disconnect();
-    throw e;
+    console.log('🔌 Disconnected from database.');
   }); 

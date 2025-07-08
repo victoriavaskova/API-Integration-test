@@ -1,51 +1,94 @@
-import rateLimit from 'express-rate-limit';
+import { Request, Response, NextFunction } from 'express';
+import { RateLimiterRedis, RateLimiterMemory, RateLimiterAbstract } from 'rate-limiter-flexible';
+import { createClient } from 'redis';
+import * as dotenv from 'dotenv';
 
-/**
- * Опции по умолчанию для всех лимитеров
- */
-const defaultOptions = {
-  standardHeaders: true, // Включить стандартные заголовки `RateLimit-*`
-  legacyHeaders: false, // Отключить заголовки `X-RateLimit-*`
-  message: {
-    statusCode: 429,
-    error: 'Too Many Requests',
-    message: 'Слишком много запросов с вашего IP, попробуйте снова позже.',
-  },
+dotenv.config();
+
+// Redis client setup
+const redisClient = createClient({
+  url: process.env.REDIS_URL,
+  disableOfflineQueue: true,
+});
+
+redisClient.on('error', (err) => {
+  console.error('Redis Client Error', err);
+});
+
+// Connect to Redis only if REDIS_URL is provided
+if (process.env.REDIS_URL) {
+  redisClient.connect().catch(console.error);
+}
+
+const getLimiter = (opts: any): RateLimiterAbstract => {
+  if (process.env.REDIS_URL && redisClient.isOpen) {
+    return new RateLimiterRedis({ storeClient: redisClient, ...opts });
+  }
+  return new RateLimiterMemory(opts);
 };
 
-/**
- * @description 100 запросов в 15 минут на IP-адрес
- */
-export const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 минут
-  max: 100, // 100 запросов
-  ...defaultOptions,
+const TOO_MANY_REQUESTS_MESSAGE = {
+  statusCode: 429,
+  error: 'Too Many Requests',
+  message: 'Слишком много запросов, попробуйте снова позже.',
+};
+
+const createRateLimiter = (opts: any) => {
+  const limiter = getLimiter(opts);
+  return (req: Request, res: Response, next: NextFunction) => {
+    // @ts-ignore
+    const key = req.user ? req.user.userId : req.ip;
+    limiter.consume(key)
+      .then(() => {
+        next();
+      })
+      .catch(() => {
+        res.status(429).json({ ...TOO_MANY_REQUESTS_MESSAGE, ...opts.message });
+      });
+  };
+};
+
+export const globalLimiter = createRateLimiter({
+  points: 100, // 100 requests
+  duration: 15 * 60, // per 15 minutes
 });
 
-/**
- * @description 10 запросов в 15 минут на IP-адрес
- */
-export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 минут
-  max: 10, // 10 запросов
-  ...defaultOptions,
+export const authLimiter = createRateLimiter({
+  points: 10, // 10 requests
+  duration: 15 * 60, // per 15 minutes
   message: {
-    statusCode: 429,
-    error: 'Too Many Requests',
     message: 'Слишком много попыток аутентификации. Пожалуйста, подождите.',
-  },
+  }
 });
 
-/**
- * @description 20 запросов в минуту на IP-адрес
- */
-export const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 минута
-  max: 20, // 20 запросов
-  ...defaultOptions,
+export const apiLimiter = createRateLimiter({
+  points: 20, // 20 requests
+  duration: 60, // per 1 minute
   message: {
-    statusCode: 429,
-    error: 'Too Many Requests',
     message: 'Превышен лимит запросов для выполнения операций. Пожалуйста, подождите.',
-  },
-}); 
+  }
+});
+
+// Example of personalized limiter by user subscription plan
+export const personalizedLimiter = (req: Request, res: Response, next: NextFunction) => {
+  // @ts-ignore
+  const user = req.user;
+  let points = 50; // default points
+  // Example: extend this logic to check user's subscription plan from the database
+  // if (user && user.subscription === 'premium') {
+  //   points = 100;
+  // }
+
+  const limiter = getLimiter({
+    points,
+    duration: 60,
+  });
+
+  limiter.consume(user ? user.userId : req.ip)
+    .then(() => {
+      next();
+    })
+    .catch(() => {
+        res.status(429).json(TOO_MANY_REQUESTS_MESSAGE);
+    });
+}; 
