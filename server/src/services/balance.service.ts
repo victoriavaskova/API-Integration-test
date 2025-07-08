@@ -281,39 +281,34 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
         console.log('Balance successfully set in external API:', externalBalance);
       }
 
-      // Создаем баланс в базе данных (используем внешний баланс если есть)
-      const finalBalance = externalBalance || initialAmount;
-      const balance = await this.repositories.balance.create({
+      // Создаем локальный баланс
+      const createdBalance = await this.repositories.balance.create({
         userId,
-        balance: new Decimal(finalBalance),
-        externalBalance: externalBalance ? new Decimal(externalBalance) : undefined
+        balance: new Decimal(initialAmount),
+        externalBalance: externalBalance ? new Decimal(externalBalance) : null,
       });
 
       // Создаем начальную транзакцию
-      if (finalBalance > 0) {
+      if (initialAmount > 0) {
         await this.repositories.transaction.create({
           userId,
           type: 'DEPOSIT',
-          amount: new Decimal(finalBalance),
+          amount: new Decimal(initialAmount),
           balanceBefore: new Decimal(0),
-          balanceAfter: new Decimal(finalBalance),
+          balanceAfter: new Decimal(initialAmount),
           description: 'Initial balance'
         });
       }
 
       const result: BalanceResult = {
-        balance: finalBalance,
+        balance: initialAmount,
         external_balance: externalBalance,
-        last_updated: balance.lastCheckedAt!.toISOString(),
-        is_synced: externalBalance ? Math.abs(finalBalance - externalBalance) < 0.01 : false,
-        difference: externalBalance ? finalBalance - externalBalance : null
+        last_updated: createdBalance.lastCheckedAt!.toISOString(),
+        is_synced: externalBalance ? Math.abs(initialAmount - externalBalance) < 0.01 : false,
+        difference: externalBalance ? initialAmount - externalBalance : null
       };
 
-      await this.logOperation('initialize_balance_success', userId, { 
-        initialAmount,
-        finalBalance,
-        externalBalance 
-      });
+      await this.logOperation('initialize_balance_success', userId, { initialAmount, finalBalance: Number(createdBalance.balance), externalBalance });
 
       return this.createSuccessResult(result);
 
@@ -337,14 +332,10 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
   async syncWithExternalApi(userId: number): Promise<ServiceResult<BalanceSyncResult>> {
     try {
       await this.logOperation('sync_with_external_api', userId);
-
-      // Получаем пользователя с внешним аккаунтом
+      
       const user = await this.repositories.user.findWithExternalAccount(userId);
       if (!user) {
-        return this.createErrorResult(
-          SERVICE_ERROR_CODES.USER_NOT_FOUND,
-          'User not found'
-        );
+        return this.createErrorResult(SERVICE_ERROR_CODES.NOT_FOUND, 'User or external account not found');
       }
 
       const externalAccount = user.externalApiAccounts?.[0];
@@ -432,6 +423,7 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
 
       await this.logOperation('add_funds', userId, { amount, description });
 
+      // Получаем текущий баланс
       const currentBalance = await this.repositories.balance.findByUserId(userId);
       if (!currentBalance) {
         return this.createErrorResult(
@@ -441,7 +433,7 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
       }
 
       const balanceBefore = Number(currentBalance.balance);
-      const newBalance = currentBalance.balance.add(amount);
+      const newBalance = currentBalance.balance.add(new Decimal(amount));
       const balanceAfter = Number(newBalance);
 
       // Обновляем баланс
@@ -450,9 +442,9 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
       // Создаем транзакцию
       const transaction = await this.repositories.transaction.create({
         userId,
-        type: TransactionType.DEPOSIT,
+        type: 'DEPOSIT',
         amount: new Decimal(amount),
-        balanceBefore: new Decimal(balanceBefore),
+        balanceBefore: currentBalance.balance,
         balanceAfter: newBalance,
         description: description || 'Funds added'
       });
@@ -523,7 +515,7 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
         );
       }
 
-      const newBalance = currentBalance.balance.sub(amount);
+      const newBalance = currentBalance.balance.sub(new Decimal(amount));
       const balanceAfter = Number(newBalance);
 
       // Обновляем баланс
@@ -532,9 +524,9 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
       // Создаем транзакцию
       const transaction = await this.repositories.transaction.create({
         userId,
-        type: TransactionType.WITHDRAWAL,
-        amount: new Decimal(-amount), // Отрицательное значение для списания
-        balanceBefore: new Decimal(balanceBefore),
+        type: 'WITHDRAWAL',
+        amount: new Decimal(amount),
+        balanceBefore: currentBalance.balance,
         balanceAfter: newBalance,
         description: description || 'Funds withdrawn'
       });
