@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { asyncErrorHandler } from '../middleware/error-handler.middleware.js';
 import { getUserFromRequest, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import type { AuthService } from '../services/auth.service.js';
@@ -118,53 +118,15 @@ export class AuthController {
    * GET /api/auth/me
    * Получение информации о текущем пользователе
    */
-  getCurrentUser = asyncErrorHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const user = getUserFromRequest(req);
-    
-    if (!user) {
-      res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required'
-        }
-      });
-      return;
+  getCurrentUser = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const user = getUserFromRequest(req);
+      const currentUser = await this.authService.getCurrentUser(user.userId);
+      res.status(200).json(currentUser.data);
+    } catch (error) {
+      next(error);
     }
-
-    // Для админа возвращаем специальную информацию
-    if (user.isAdmin) {
-      res.status(200).json({
-        success: true,
-        data: {
-          id: 0,
-          username: 'admin',
-          email: null,
-          isAdmin: true,
-          permissions: ['read', 'write', 'admin']
-        }
-      });
-      return;
-    }
-
-    const result = await this.authService.getCurrentUser(user.userId);
-
-    if (result.success) {
-      res.status(200).json({
-        success: true,
-        data: {
-          ...result.data,
-          isAdmin: false,
-          permissions: ['read', 'write']
-        }
-      });
-    } else {
-      res.status(404).json({
-        success: false,
-        error: result.error
-      });
-    }
-  });
+  };
 
   /**
    * GET /api/auth/validate

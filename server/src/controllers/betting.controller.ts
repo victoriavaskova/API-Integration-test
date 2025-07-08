@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { asyncErrorHandler } from '../middleware/error-handler.middleware.js';
 import { getUserFromRequest, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import type { BettingService } from '../services/betting.service.js';
@@ -313,4 +313,13 @@ export class BettingController {
       external_response: externalResponse
     });
   });
+
+  getAppStatistics = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const stats = await this.bettingService.getAppStatistics();
+      res.status(200).json(stats);
+    } catch (error) {
+      next(error);
+    }
+  };
 } 

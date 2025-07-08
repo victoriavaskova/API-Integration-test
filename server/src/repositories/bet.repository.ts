@@ -18,6 +18,7 @@ export interface BetRepository extends BaseRepository<Bet, CreateBetData, Update
   updateStatus(id: number, status: BetStatus, winAmount?: number): Promise<Bet>;
   completeBet(id: number, winAmount: number): Promise<Bet>;
   getUserBetsStats(userId: number): Promise<BetStatsResult>;
+  getAppStatistics(): Promise<{ totalUsers: number; totalBets: number; totalTransactions: number }>;
 }
 
 export interface BetStatsResult {
@@ -225,5 +226,12 @@ export class PrismaBetRepository implements BetRepository {
       winRate: completedBets > 0 ? (winningBets / completedBets) * 100 : 0,
       pendingBets
     };
+  }
+
+  async getAppStatistics() {
+    const totalUsers = await this.prisma.user.count();
+    const totalBets = await this.prisma.bet.count();
+    const totalTransactions = await this.prisma.transaction.count();
+    return { totalUsers, totalBets, totalTransactions };
   }
 } 

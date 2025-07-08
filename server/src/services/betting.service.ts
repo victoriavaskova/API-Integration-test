@@ -13,6 +13,7 @@ export interface BettingService {
   getBetById(userId: number, betId: number): Promise<ServiceResult<Bet>>;
   getUserBetsStats(userId: number): Promise<ServiceResult<BetStatsResponse>>;
   processAllPendingBets(): Promise<ServiceResult<ProcessedBetsResult>>;
+  getAppStatistics(): Promise<{ totalUsers: number; totalBets: number; totalTransactions: number }>;
 }
 
 export interface RecommendedBetResult {
@@ -616,6 +617,9 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
     }
   }
 
+  async getAppStatistics() {
+    return this.repositories.bet.getAppStatistics();
+  }
 
 
   /**

@@ -13,6 +13,8 @@ import { createApiRoutes } from './routes/index.js';
 import { initializeGlobalAuthService } from './middleware/auth.middleware.js';
 import { globalLimiter } from './middleware/rate-limiter.middleware.js';
 import { idempotencyMiddleware } from './middleware/idempotency.middleware.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Load environment variables
 dotenv.config();
@@ -56,6 +58,14 @@ app.use(express.urlencoded({ extended: true }));
 
 // Apply global rate limiting
 app.use(globalLimiter);
+
+// Serve Admin Panel
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use('/admin', express.static(path.join(__dirname, 'public/admin')));
+app.get('/admin', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public/admin/index.html'));
+});
 
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
@@ -168,13 +178,8 @@ async function startServer() {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📝 Health check: http://localhost:${PORT}/api/health`);
       console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
+      console.log(`🔒 Admin Panel: http://localhost:${PORT}/admin`);
       console.log(`🎯 External API: https://bets.tgapps.cloud/api`);
-      console.log(`🔗 Available endpoints:`);
-      console.log(`  - POST /api/auth/login - User login`);
-      console.log(`  - GET /api/bets - Get user bets`);
-      console.log(`  - POST /api/bets - Place a bet`);
-      console.log(`  - GET /api/balance - Get user balance`);
-      console.log(`  - POST /api/internal/auth - Test external API auth`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
@@ -182,16 +187,4 @@ async function startServer() {
   }
 }
 
-// Обработка необработанных исключений
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
-});
-
-// Запуск сервера
 startServer();

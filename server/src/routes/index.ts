@@ -4,6 +4,7 @@ import { createAuthRoutes } from './auth.routes.js';
 import { createBettingRoutes } from './betting.routes.js';
 import { createBalanceRoutes } from './balance.routes.js';
 import { createInternalRoutes } from './internal.routes.js';
+import { createAdminRoutes } from './admin.routes.js';
 
 type IdempotencyMiddleware = (req: Request, res: Response, next: NextFunction) => Promise<any>;
 
@@ -43,15 +44,18 @@ export function createApiRoutes(
   const authRoutes = createAuthRoutes(controllers.auth);
   const bettingRoutes = createBettingRoutes(controllers.betting, idempotency);
   const balanceRoutes = createBalanceRoutes(controllers.balance);
+  const adminRoutes = createAdminRoutes(controllers.betting);
   
   console.log('🔧 Auth routes created:', typeof authRoutes);
   console.log('🔧 Betting routes created:', typeof bettingRoutes);
   console.log('🔧 Balance routes created:', typeof balanceRoutes);
+  console.log('🔧 Admin routes created:', typeof adminRoutes);
   
   router.use('/auth', authRoutes);
   router.use('/bets', bettingRoutes);
   router.use('/balance', balanceRoutes);
   router.use('/', balanceRoutes); // для /api/transactions
+  router.use('/admin', adminRoutes);
 
   // Внутренние маршруты для тестирования
   const internalRoutes = createInternalRoutes(
@@ -69,5 +73,6 @@ export function createApiRoutes(
 export {
   createAuthRoutes,
   createBettingRoutes,
-  createBalanceRoutes
+  createBalanceRoutes,
+  createAdminRoutes
 }; 
