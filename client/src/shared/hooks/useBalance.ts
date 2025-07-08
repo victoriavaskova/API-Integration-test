@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@shared/api/client';
-import type { BalanceResponse, TransactionsResponse } from '@shared/api/types';
 
 export const useBalance = () => {
   const [balance, setBalance] = useState<number>(0);

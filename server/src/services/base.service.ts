@@ -150,6 +150,29 @@ export abstract class BaseServiceImpl {
   }
 
   /**
+   * Получает пользователя с внешним аккаунтом
+   */
+  protected async getUserWithExternalAccount(userId: number): Promise<ServiceResult<any>> {
+    try {
+      const user = await this.repositories.user.findWithExternalAccount(userId);
+      if (!user) {
+        return this.createErrorResult(
+          SERVICE_ERROR_CODES.USER_NOT_FOUND,
+          'User not found'
+        );
+      }
+      return this.createSuccessResult(user);
+    } catch (error) {
+      return this.createErrorResult(
+        SERVICE_ERROR_CODES.INTERNAL_ERROR,
+        'Failed to get user with external account',
+        { userId },
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+
+  /**
    * Валидирует входные данные
    */
   protected validateInput(data: any, schema: ValidationSchema): void {

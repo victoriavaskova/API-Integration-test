@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@shared/api/client';
-import type { LoginRequest, AuthResponse } from '@shared/api/types';
+import type { LoginRequest } from '@shared/api/types';
 
 export const useAuth = () => {
   const [user, setUser] = useState<any>(null);

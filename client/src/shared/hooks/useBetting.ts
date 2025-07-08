@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@shared/api/client';
-import type { Bet, BetsResponse, RecommendedBetResponse, PlaceBetRequest } from '@shared/api/types';
+import type { Bet } from '@shared/api/types';
 
 export const useBetting = () => {
   const [bets, setBets] = useState<Bet[]>([]);

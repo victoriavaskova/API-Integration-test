@@ -15,10 +15,18 @@ export class AuthController {
    * Аутентификация пользователя по username
    */
   login = asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
-    const { username, email } = req.body;
+    let { username, email } = req.body;
 
-    if (!username) {
-      sendErrorResponse(res, 400, 'Bad Request', 'Username is required');
+    // Исправляем если клиент отправляет вложенный объект
+    if (typeof username === 'object' && username?.username) {
+      username = username.username;
+    }
+    if (typeof email === 'object' && email?.email) {
+      email = email.email;
+    }
+
+    if (!username || typeof username !== 'string') {
+      sendErrorResponse(res, 400, 'Bad Request', 'Username is required and must be a string');
       return;
     }
 

@@ -13,7 +13,6 @@ export const DashboardPage: React.FC = () => {
     placeBet, 
     checkBetResult,
     placingBet, 
-    loading,
     error, 
     clearError, 
     stats,

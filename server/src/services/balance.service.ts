@@ -95,9 +95,86 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
     try {
       await this.logOperation('get_current_balance', userId);
 
-      const balance = await this.repositories.balance.findByUserId(userId);
+      // Получаем пользователя с внешним аккаунтом
+      const userResult = await this.getUserWithExternalAccount(userId);
+      if (!userResult.success) {
+        return this.createErrorResult(
+          SERVICE_ERROR_CODES.NOT_FOUND,
+          'Failed to get user with external account',
+          { userId },
+          userResult.error?.originalError
+        );
+      }
+
+      const user = userResult.data!;
+      const externalAccount = user.externalApiAccounts?.[0];
       
-      if (!balance) {
+      if (!externalAccount) {
+        // Если нет внешнего аккаунта, возвращаем локальный баланс
+        const balance = await this.repositories.balance.findByUserId(userId);
+        if (!balance) {
+          return this.createErrorResult(
+            SERVICE_ERROR_CODES.BALANCE_NOT_FOUND,
+            'Balance not found for user',
+            { userId }
+          );
+        }
+
+        const result: BalanceResult = {
+          balance: Number(balance.balance),
+          external_balance: null,
+          last_updated: (balance.lastCheckedAt || new Date()).toISOString(),
+          is_synced: false,
+          difference: null
+        };
+
+        return this.createSuccessResult(result);
+      }
+
+      // Аутентификация в внешнем API
+      const authResult = await this.externalApiClient.authenticate(
+        externalAccount.externalUserId,
+        externalAccount.externalSecretKey,
+        userId
+      );
+
+      if (!authResult.success) {
+        console.warn('Failed to authenticate with external API for balance check:', (authResult as any).error);
+      }
+
+      // Получаем баланс от внешнего API (POST /api/balance без тела)
+      const externalBalanceResult = await this.externalApiClient.getBalance(
+        externalAccount.externalUserId,
+        externalAccount.externalSecretKey,
+        userId
+      );
+
+      let externalBalance: number | null = null;
+      if (externalBalanceResult.success) {
+        externalBalance = externalBalanceResult.data.balance;
+      } else {
+        console.warn('Failed to get balance from external API:', (externalBalanceResult as any).error);
+      }
+
+      // Получаем локальный баланс
+      const localBalance = await this.repositories.balance.findByUserId(userId);
+      let internalBalance = 0;
+
+      if (localBalance) {
+        internalBalance = Number(localBalance.balance);
+        // Обновляем внешний баланс в БД
+        if (externalBalance !== null) {
+          await this.repositories.balance.updateExternalBalance(userId, new Decimal(externalBalance));
+        }
+      } else if (externalBalance !== null) {
+        // Если локального баланса нет, но есть внешний - создаем локальный
+        const createdBalance = await this.repositories.balance.create({
+          userId,
+          balance: new Decimal(externalBalance),
+          externalBalance: new Decimal(externalBalance)
+        });
+        internalBalance = Number(createdBalance.balance);
+      } else {
         return this.createErrorResult(
           SERVICE_ERROR_CODES.BALANCE_NOT_FOUND,
           'Balance not found for user',
@@ -105,15 +182,13 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
         );
       }
 
-      const internalBalance = Number(balance.balance);
-      const externalBalance = balance.externalBalance ? Number(balance.externalBalance) : null;
       const difference = externalBalance !== null ? internalBalance - externalBalance : null;
       const isSynced = difference !== null ? Math.abs(difference) < 0.01 : false;
 
       const result: BalanceResult = {
-        balance: internalBalance,
+        balance: externalBalance !== null ? externalBalance : internalBalance, // Приоритет внешнему балансу
         external_balance: externalBalance,
-        last_updated: (balance.lastCheckedAt || new Date()).toISOString(),
+        last_updated: new Date().toISOString(),
         is_synced: isSynced,
         difference
       };
@@ -153,66 +228,90 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
       }
 
       // Получаем пользователя с внешним аккаунтом
-      const user = await this.repositories.user.findWithExternalAccount(userId);
-      if (!user) {
+      const userResult = await this.getUserWithExternalAccount(userId);
+      if (!userResult.success) {
         return this.createErrorResult(
           SERVICE_ERROR_CODES.USER_NOT_FOUND,
           'User not found'
         );
       }
 
+      const user = userResult.data!;
       const externalAccount = user.externalApiAccounts?.[0];
       let externalBalance: number | null = null;
 
-      // Если есть внешний аккаунт, устанавливаем баланс в внешнем API
+      // Если есть внешний аккаунт, устанавливаем баланс в внешнем API согласно README
       if (externalAccount) {
+        // Аутентификация в внешнем API
         const authResult = await this.externalApiClient.authenticate(
           externalAccount.externalUserId,
-          externalAccount.externalSecretKey
+          externalAccount.externalSecretKey,
+          userId
         );
 
-        if (authResult.success) {
-          const setBalanceResult = await this.externalApiClient.setBalance(
-            externalAccount.externalUserId,
-            externalAccount.externalSecretKey,
-            initialAmount
+        if (!authResult.success) {
+          console.warn('Failed to authenticate during balance initialization:', (authResult as any).error);
+          return this.createErrorResult(
+            SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
+            'Failed to authenticate with external API',
+            {},
+            (authResult as any).error
           );
-
-          if (setBalanceResult.success) {
-            externalBalance = setBalanceResult.data.balance;
-          }
         }
+
+        // Устанавливаем начальный баланс в внешнем API (POST /api/balance с { "balance": 1000 })
+        const setBalanceResult = await this.externalApiClient.setBalance(
+          externalAccount.externalUserId,
+          externalAccount.externalSecretKey,
+          initialAmount,
+          userId
+        );
+
+        if (!setBalanceResult.success) {
+          console.warn('Failed to set balance in external API:', (setBalanceResult as any).error);
+          return this.createErrorResult(
+            SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
+            'Failed to set balance in external API',
+            {},
+            (setBalanceResult as any).error
+          );
+        }
+
+        externalBalance = setBalanceResult.data.balance;
+        console.log('Balance successfully set in external API:', externalBalance);
       }
 
-      // Создаем баланс в базе данных
+      // Создаем баланс в базе данных (используем внешний баланс если есть)
+      const finalBalance = externalBalance || initialAmount;
       const balance = await this.repositories.balance.create({
         userId,
-        balance: new Decimal(initialAmount),
+        balance: new Decimal(finalBalance),
         externalBalance: externalBalance ? new Decimal(externalBalance) : undefined
       });
 
       // Создаем начальную транзакцию
-      if (initialAmount > 0) {
+      if (finalBalance > 0) {
         await this.repositories.transaction.create({
           userId,
-          type: TransactionType.DEPOSIT,
-          amount: new Decimal(initialAmount),
+          type: 'DEPOSIT',
+          amount: new Decimal(finalBalance),
           balanceBefore: new Decimal(0),
-          balanceAfter: new Decimal(initialAmount),
+          balanceAfter: new Decimal(finalBalance),
           description: 'Initial balance'
         });
       }
 
       const result: BalanceResult = {
-        balance: Number(balance.balance),
+        balance: finalBalance,
         external_balance: externalBalance,
         last_updated: balance.lastCheckedAt!.toISOString(),
-        is_synced: externalBalance ? Math.abs(Number(balance.balance) - externalBalance) < 0.01 : false,
-        difference: externalBalance ? Number(balance.balance) - externalBalance : null
+        is_synced: externalBalance ? Math.abs(finalBalance - externalBalance) < 0.01 : false,
+        difference: externalBalance ? finalBalance - externalBalance : null
       };
 
       await this.logOperation('initialize_balance_success', userId, { 
         initialAmount,
+        finalBalance,
         externalBalance 
       });
 

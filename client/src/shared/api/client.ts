@@ -11,17 +11,6 @@ import type {
   PlaceBetRequest 
 } from './types';
 
-// Server response types - some endpoints return wrapped responses, others return direct data
-type WrappedResponse<T> = {
-  success: boolean;
-  data?: T;
-  error?: any;
-  pagination?: any;
-};
-
-// Direct response type for endpoints that don't wrap their data
-type DirectResponse<T> = T;
-
 class ApiClient {
   private client: AxiosInstance;
 

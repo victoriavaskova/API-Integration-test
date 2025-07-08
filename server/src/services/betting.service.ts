@@ -2,7 +2,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { BaseServiceImpl, type ServiceResult, type PaginatedServiceResult, SERVICE_ERROR_CODES } from './base.service.js';
 import { decrypt } from '../utils/crypto.helper.js';
 // import { ExternalApiClient } from './external-api.client.js';
-import type { Bet, UserWithRelations, BetStatus } from '../types/database.js';
+import type { Bet, BetStatus } from '../types/database.js';
 // import type { PaginatedResult } from '../repositories/index.js';
 
 export interface BettingService {
@@ -82,7 +82,6 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
 
       // Получаем пользователя с внешним аккаунтом
       const userResult = await this.getUserWithExternalAccount(userId);
-      
       if (!userResult.success) {
         return this.createErrorResult(
           SERVICE_ERROR_CODES.NOT_FOUND,
@@ -94,45 +93,66 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
 
       const user = userResult.data!;
       const externalAccount = user.externalApiAccounts?.[0];
-      if (!externalAccount) {
-        return this.createErrorResult(
-          SERVICE_ERROR_CODES.NOT_FOUND,
-          'External account not found for user'
+      
+      let recommendedAmount = 3; // Fallback значение
+
+      if (externalAccount) {
+        // Аутентификация в внешнем API
+        const authResult = await this.externalApiClient.authenticate(
+          externalAccount.externalUserId,
+          decrypt(externalAccount.externalSecretKey),
+          userId
         );
-      }
 
-          // Получаем рекомендуемую ставку от внешнего API
-    const externalResult = await this.externalApiClient.getRecommendedBet(
-      externalAccount.externalUserId,
-      decrypt(externalAccount.externalSecretKey),
-      userId
-    );
+        if (authResult.success) {
+          // Получаем рекомендуемую ставку от внешнего API (GET /api/bet)
+          const betResult = await this.externalApiClient.getRecommendedBet(
+            externalAccount.externalUserId,
+            decrypt(externalAccount.externalSecretKey),
+            userId
+          );
 
-      let recommendedAmount = 3; // Default fallback
-
-      if (!externalResult.success) {
-        console.warn('Failed to get recommended bet from external API, using fallback:', (externalResult as any).error);
-        // Use fallback logic instead of returning error
-        // Calculate recommended amount based on user balance (25% of balance, min 1, max 5)
-        const balance = await this.repositories.balance.findByUserId(userId);
-        if (balance) {
-          const userBalance = Number(balance.balance);
-          recommendedAmount = Math.min(5, Math.max(1, Math.floor(userBalance * 0.25)));
+          if (betResult.success) {
+            recommendedAmount = betResult.data.bet;
+          } else {
+            console.warn('Failed to get recommended bet from external API, using fallback:', (betResult as any).error);
+          }
+        } else {
+          console.warn('Failed to authenticate for recommended bet, using fallback:', (authResult as any).error);
         }
-      } else {
-        recommendedAmount = externalResult.data.bet;
       }
 
-      // Получаем баланс пользователя
-      const balance = await this.repositories.balance.findByUserId(userId);
-      const userBalance = balance ? Number(balance.balance) : 0;
-      const externalBalance = balance?.externalBalance ? Number(balance.externalBalance) : 0;
+      // Получаем баланс пользователя из внешнего API
+      const balanceResult = await this.repositories.balance.findByUserId(userId);
+      let userBalance = 0;
+      let externalBalance = 0;
 
-      const canPlaceBet = userBalance >= recommendedAmount;
+      if (balanceResult) {
+        userBalance = Number(balanceResult.balance);
+        externalBalance = balanceResult.externalBalance ? Number(balanceResult.externalBalance) : userBalance;
+      }
+
+      // Если есть внешний аккаунт, получаем актуальный баланс
+      if (externalAccount) {
+        const currentBalanceResult = await this.externalApiClient.getBalance(
+          externalAccount.externalUserId,
+          decrypt(externalAccount.externalSecretKey),
+          userId
+        );
+
+        if (currentBalanceResult.success) {
+          externalBalance = currentBalanceResult.data.balance;
+          // Обновляем внешний баланс в БД
+          await this.repositories.balance.updateExternalBalance(userId, new Decimal(externalBalance));
+        }
+      }
+
+      const actualBalance = externalBalance > 0 ? externalBalance : userBalance;
+      const canPlaceBet = actualBalance >= recommendedAmount;
 
       const result: RecommendedBetResult = {
         recommended_amount: recommendedAmount,
-        user_balance: userBalance,
+        user_balance: actualBalance,
         external_balance: externalBalance,
         can_place_bet: canPlaceBet
       };
@@ -181,20 +201,33 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         );
       }
 
-      // Проверяем баланс
-      const balance = await this.repositories.balance.findByUserId(userId);
-      if (!balance || balance.balance.lt(amount)) {
+      // Получаем текущий баланс ДО размещения ставки
+      const currentBalanceResult = await this.externalApiClient.getBalance(
+        externalAccount.externalUserId,
+        decrypt(externalAccount.externalSecretKey),
+        userId
+      );
+
+      let balanceBefore = 0;
+      if (currentBalanceResult.success) {
+        balanceBefore = currentBalanceResult.data.balance;
+      } else {
+        // Fallback к локальному балансу
+        const balance = await this.repositories.balance.findByUserId(userId);
+        balanceBefore = balance ? Number(balance.balance) : 0;
+      }
+
+      // Проверяем достаточность баланса
+      if (balanceBefore < amount) {
         return this.createErrorResult(
           SERVICE_ERROR_CODES.INSUFFICIENT_BALANCE,
           'Insufficient balance',
           { 
             required: amount, 
-            available: balance ? Number(balance.balance) : 0 
+            available: balanceBefore 
           }
         );
       }
-
-      const balanceBefore = Number(balance.balance);
 
       // Аутентификация в внешнем API
       const authResult = await this.externalApiClient.authenticate(
@@ -204,11 +237,16 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
       );
 
       if (!authResult.success) {
-        console.warn('Failed to authenticate with external API, proceeding with fallback logic:', (authResult as any).error);
-        // Не блокируем размещение ставки, продолжаем с fallback логикой
+        console.warn('Failed to authenticate with external API for bet placement:', (authResult as any).error);
+        return this.createErrorResult(
+          SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
+          'Failed to authenticate with external API',
+          {},
+          (authResult as any).error
+        );
       }
 
-      // Размещаем ставку в внешнем API
+      // Размещаем ставку в внешнем API (POST /api/bet с { "bet": amount })
       const betResult = await this.externalApiClient.placeBet(
         externalAccount.externalUserId,
         decrypt(externalAccount.externalSecretKey),
@@ -216,20 +254,33 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         userId
       );
 
-      let externalBetId: string;
       if (!betResult.success) {
-        console.warn('Failed to place bet in external API, using fallback logic:', (betResult as any).error);
-        // Fallback: создаем локальный ID для ставки
-        externalBetId = `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      } else {
-        externalBetId = betResult.data.bet_id;
+        console.error('Failed to place bet in external API:', (betResult as any).error);
+        return this.createErrorResult(
+          SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
+          'Failed to place bet in external API',
+          {},
+          (betResult as any).error
+        );
       }
 
-      // Обновляем баланс (вычитаем сумму ставки)
-      const newBalance = balance.balance.sub(amount);
-      const balanceAfter = Number(newBalance);
-      
-      await this.repositories.balance.updateBalance(userId, newBalance);
+      const externalBetId = String(betResult.data.bet_id);
+
+      // Получаем обновленный баланс ПОСЛЕ размещения ставки
+      const updatedBalanceResult = await this.externalApiClient.getBalance(
+        externalAccount.externalUserId,
+        decrypt(externalAccount.externalSecretKey),
+        userId
+      );
+
+      let balanceAfter = balanceBefore - amount; // Fallback расчет
+      if (updatedBalanceResult.success) {
+        balanceAfter = updatedBalanceResult.data.balance;
+      }
+
+      // Обновляем локальный баланс в соответствии с внешним
+      await this.repositories.balance.updateBalance(userId, new Decimal(balanceAfter));
+      await this.repositories.balance.updateExternalBalance(userId, new Decimal(balanceAfter));
 
       // Создаем запись о ставке
       const bet = await this.repositories.bet.create({
@@ -262,7 +313,8 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         betId: bet.id, 
         externalBetId: bet.externalBetId,
         amount,
-        fallback: !betResult.success
+        balanceBefore,
+        balanceAfter
       });
 
       return this.createSuccessResult(result);
@@ -320,7 +372,19 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         );
       }
 
-      // Получаем результат от внешнего API
+      // Получаем баланс ДО получения результата
+      const currentBalanceResult = await this.externalApiClient.getBalance(
+        externalAccount.externalUserId,
+        decrypt(externalAccount.externalSecretKey),
+        userId
+      );
+
+      let balanceBefore = 0;
+      if (currentBalanceResult.success) {
+        balanceBefore = currentBalanceResult.data.balance;
+      }
+
+      // Получаем результат от внешнего API (POST /api/win с { "bet_id": "externalBetId" })
       const winResult = await this.externalApiClient.getWinResult(
         externalAccount.externalUserId,
         decrypt(externalAccount.externalSecretKey),
@@ -328,48 +392,62 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         userId
       );
 
-      let winAmount: number;
       if (!winResult.success) {
-        console.warn('Failed to get bet result from external API, using fallback logic:', (winResult as any).error);
-        // Fallback: симулируем результат ставки (50% шанс выигрыша)
-        const isWin = Math.random() > 0.5;
-        winAmount = isWin ? Number(bet.amount) * 2 : 0; // Выигрыш = ставка * 2
-      } else {
-        winAmount = winResult.data.win;
+        console.warn('Failed to get win result from external API:', (winResult as any).error);
+        return this.createErrorResult(
+          SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
+          'Failed to get bet result from external API',
+          {},
+          (winResult as any).error
+        );
       }
 
-      // Обновляем ставку с результатом
-      await this.repositories.bet.completeBet(bet.id, winAmount);
+      const winAmount = winResult.data.win || 0;
+      const isWin = winAmount > 0;
 
-      // Если есть выигрыш, обновляем баланс и создаем транзакцию
-      if (winAmount > 0) {
-        const currentBalance = await this.repositories.balance.findByUserId(userId);
-        if (currentBalance) {
-          const balanceBefore = Number(currentBalance.balance);
-          const newBalance = currentBalance.balance.add(winAmount);
-          const balanceAfter = Number(newBalance);
-          
-          await this.repositories.balance.updateBalance(userId, newBalance);
-          
-          // Создаем транзакцию выигрыша
-          await this.repositories.transaction.createWinTransaction(
-            userId,
-            bet.id,
-            winAmount,
-            balanceBefore,
-            balanceAfter
-          );
-        }
+      // Получаем обновленный баланс ПОСЛЕ получения результата
+      const updatedBalanceResult = await this.externalApiClient.getBalance(
+        externalAccount.externalUserId,
+        decrypt(externalAccount.externalSecretKey),
+        userId
+      );
+
+      let balanceAfter = balanceBefore;
+      if (updatedBalanceResult.success) {
+        balanceAfter = updatedBalanceResult.data.balance;
+      } else if (isWin) {
+        balanceAfter = balanceBefore + winAmount; // Fallback расчет
       }
 
-      // Получаем обновленную ставку
-      const updatedBet = await this.repositories.bet.findById(bet.id);
-      const result = await this.formatBetResult(updatedBet!, userId);
+      // Обновляем локальный баланс
+      await this.repositories.balance.updateBalance(userId, new Decimal(balanceAfter));
+      await this.repositories.balance.updateExternalBalance(userId, new Decimal(balanceAfter));
 
-      await this.logOperation('get_bet_result_success', userId, { 
-        betId, 
+      // Обновляем ставку
+      const updatedBet = await this.repositories.bet.completeBet(bet.id, winAmount);
+
+      // Создаем транзакцию для выигрыша (если есть)
+      if (isWin) {
+        await this.repositories.transaction.create({
+          userId,
+          betId: bet.id,
+          type: 'WIN',
+          amount: new Decimal(winAmount),
+          balanceBefore: new Decimal(balanceBefore),
+          balanceAfter: new Decimal(balanceAfter),
+          description: `Win amount for bet #${bet.id}`
+        });
+      }
+
+      const result = await this.formatBetResult(updatedBet, userId);
+
+      await this.logOperation('get_bet_result_success', userId, {
+        betId,
+        externalBetId: bet.externalBetId,
         winAmount,
-        result: winAmount > 0 ? 'win' : 'lose'
+        isWin,
+        balanceBefore,
+        balanceAfter
       });
 
       return this.createSuccessResult(result);
@@ -538,21 +616,7 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
     }
   }
 
-  /**
-   * Вспомогательный метод для получения пользователя с внешним аккаунтом
-   */
-  private async getUserWithExternalAccount(userId: number): Promise<ServiceResult<UserWithRelations>> {
-    const user = await this.repositories.user.findWithExternalAccount(userId);
-    
-    if (!user) {
-      return this.createErrorResult(
-        SERVICE_ERROR_CODES.USER_NOT_FOUND,
-        'User not found'
-      );
-    }
 
-    return this.createSuccessResult(user);
-  }
 
   /**
    * Форматирование результата ставки
