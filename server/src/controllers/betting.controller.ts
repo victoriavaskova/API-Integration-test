@@ -130,40 +130,23 @@ export class BettingController {
    * GET /api/betting/bets
    * Получение списка ставок пользователя
    */
-  getUserBets = asyncErrorHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const user = getUserFromRequest(req);
-    if (!user) {
-      sendErrorResponse(res, 401, 'Unauthorized', 'Authentication required');
-      return;
-    }
+  getUserBets = async (req: Request, res: Response) => {
+    const { userId } = (req as any).user;
+    const { page, limit } = req.query;
 
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 10;
-
-    if (page < 1 || limit < 1 || limit > 100) {
-      sendErrorResponse(res, 400, 'Bad Request', 'Invalid pagination parameters');
-      return;
-    }
-
-    const result = await this.bettingService.getUserBets(user.userId, page, limit);
+    const result = await this.bettingService.getUserBets(
+      userId,
+      page ? parseInt(page as string) : undefined,
+      limit ? parseInt(limit as string) : undefined
+    );
 
     if (result.success) {
-      // Формат ответа согласно README: { bets: [...] }
-      const betsData = {
-        bets: result.data!.map((bet: any) => ({
-          id: formatId(bet.id),
-          amount: Number(bet.amount).toString(), // Ensure amount is string as expected by client
-          status: bet.status.toLowerCase(),
-          win_amount: bet.winAmount ? Number(bet.winAmount).toString() : undefined,
-          created_at: formatDate(bet.createdAt),
-          completed_at: bet.completedAt ? formatDate(bet.completedAt) : undefined
-        }))
-      };
-      sendSuccessResponse(res, 200, betsData);
+      res.status(200).json(result.data);
     } else {
-      sendErrorResponse(res, 500, 'Internal Server Error', result.error!.message);
+      const errorDetails = getErrorDetails(result.error?.code);
+      sendErrorResponse(res, errorDetails.statusCode, errorDetails.error, result.error!.message);
     }
-  });
+  };
 
   /**
    * GET /api/betting/bet/:betId
