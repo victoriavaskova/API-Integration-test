@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # Сервис нашего Node.js приложения
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: betting_api_server
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    depends_on:
+      - db
+    env_file:
+      - ./server/.env
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - PORT=3003
+      - NODE_ENV=production
+
+  # Сервис базы данных PostgreSQL
+  db:
+    image: postgres:14-alpine
+    container_name: betting_api_db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  # Volume для сохранения данных PostgreSQL
+  postgres_data:
+    driver: local 

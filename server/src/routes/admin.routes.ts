@@ -13,6 +13,13 @@ export function createAdminRoutes(
 
   /**
    * @swagger
+   * tags:
+   *   name: Admin
+   *   description: Admin-only operations
+   */
+
+  /**
+   * @swagger
    * /api/admin/stats:
    *   get:
    *     summary: Get application statistics
@@ -29,10 +36,13 @@ export function createAdminRoutes(
    *               properties:
    *                 totalUsers:
    *                   type: integer
+   *                   example: 15
    *                 totalBets:
    *                   type: integer
+   *                   example: 150
    *                 totalTransactions:
    *                   type: integer
+   *                   example: 450
    */
   router.get('/stats', bettingController.getAppStatistics);
 
