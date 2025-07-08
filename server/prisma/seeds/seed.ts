@@ -2,6 +2,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import * as dotenv from 'dotenv';
 import { encrypt } from '../../src/utils/crypto.helper.js';
+import logger from '../../src/config/logger.js';
 
 // Загружаем переменные окружения
 dotenv.config();
@@ -21,23 +22,23 @@ function validateEnvironmentVariables(): void {
   const missingVars = requiredVars.filter(varName => !process.env[varName]);
   
   if (missingVars.length > 0) {
-    console.error('❌ Missing required environment variables:');
+    logger.error('❌ Missing required environment variables:');
     missingVars.forEach(varName => {
-      console.error(`   - ${varName}`);
+      logger.error(`   - ${varName}`);
     });
-    console.error('');
-    console.error('Please set these variables in your .env file');
-    console.error('Required format:');
-    console.error('EXTERNAL_USER_ID=5');
-    console.error('EXTERNAL_SECRET_KEY=your_real_secret_key');
-    console.error('ADMIN_USER_ID=99');
-    console.error('ADMIN_USER_SECRET=admin_secret_key');
+    logger.error('');
+    logger.error('Please set these variables in your .env file');
+    logger.error('Required format:');
+    logger.error('EXTERNAL_USER_ID=5');
+    logger.error('EXTERNAL_SECRET_KEY=your_real_secret_key');
+    logger.error('ADMIN_USER_ID=99');
+    logger.error('ADMIN_USER_SECRET=admin_secret_key');
     process.exit(1);
   }
 }
 
 async function main(): Promise<void> {
-  console.log('🌱 Starting database seeding...');
+  logger.info('🌱 Starting database seeding...');
   
   // Проверяем переменные окружения
   validateEnvironmentVariables();
@@ -67,7 +68,7 @@ async function main(): Promise<void> {
     externalSecretKey: process.env.ADMIN_USER_SECRET!,
   });
 
-  console.log(`👤 Creating ${usersData.length} users...`);
+  logger.info(`👤 Creating ${usersData.length} users...`);
   
   for (const userData of usersData) {
     // Создаем пользователя
@@ -83,7 +84,7 @@ async function main(): Promise<void> {
       }
     });
 
-    console.log(`✅ Created/Updated user: ${user.username} (ID: ${user.id})`);
+    logger.debug(`✅ Created/Updated user: ${user.username} (ID: ${user.id})`);
 
     // Создаем внешний аккаунт для пользователя  
     // Проверяем, есть ли уже аккаунт для этого пользователя
@@ -114,7 +115,7 @@ async function main(): Promise<void> {
       });
     }
 
-    console.log(`🔑 Created/Updated external account for user ${user.username}`);
+    logger.debug(`🔑 Created/Updated external account for user ${user.username}`);
 
     // Создаем начальный баланс для пользователя
     const userBalance = await prisma.userBalance.upsert({
@@ -130,10 +131,10 @@ async function main(): Promise<void> {
       }
     });
 
-    console.log(`💰 Created/Updated balance for user ${user.username}: ${userBalance.balance}`);
+    logger.debug(`💰 Created/Updated balance for user ${user.username}: ${userBalance.balance}`);
   }
 
-  console.log('🎯 Creating sample bets and transactions...');
+  logger.info('🎯 Creating sample bets and transactions...');
 
   // Создаем примеры ставок для первого пользователя
   const firstUser = await prisma.user.findUnique({
@@ -176,7 +177,7 @@ async function main(): Promise<void> {
         }
       });
 
-      console.log(`🎲 Created/Updated bet: ${bet.externalBetId} (Status: ${bet.status})`);
+      logger.debug(`🎲 Created/Updated bet: ${bet.externalBetId} (Status: ${bet.status})`);
 
       // Создаем транзакции для ставки
       if (bet.status === 'COMPLETED') {
@@ -215,7 +216,7 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log('🏥 Creating sample API logs...');
+  logger.info('🏥 Creating sample API logs...');
 
   // Создаем примеры API логов
   const sampleApiLogs = [
@@ -246,25 +247,24 @@ async function main(): Promise<void> {
     });
   }
 
-  console.log(`📝 Created ${sampleApiLogs.length} sample API logs.`);
+  logger.info(`📝 Created ${sampleApiLogs.length} sample API logs.`);
 
-  console.log('✅ Seeding finished successfully!');
-  console.log('');
-  console.log('📊 Summary:');
-  console.log(`👤 Users created: ${usersData.length}`);
-  console.log(`🔑 External accounts created: ${usersData.length}`);
-  console.log(`💰 User balances created: ${usersData.length}`);
-  console.log(`🎲 Sample bets created: 3`);
-  console.log(`📝 Sample API logs created: ${sampleApiLogs.length}`);
+  logger.info('✅ Seeding finished successfully!');
+  logger.info('');
+  logger.info('📊 Summary:');
+  logger.info(`👤 Users created: ${usersData.length}`);
+  logger.info(`🔑 External accounts created: ${usersData.length}`);
+  logger.info(`💰 User balances created: ${usersData.length}`);
+  logger.info(`🎲 Sample bets created: 3`);
+  logger.info(`📝 Sample API logs created: ${sampleApiLogs.length}`);
 }
 
 main()
   .catch((e) => {
-    console.error('❌ An error occurred during seeding:');
-    console.error(e);
+    logger.error('❌ An error occurred during seeding:', e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
-    console.log('🔌 Disconnected from database.');
+    logger.info('🔌 Disconnected from database.');
   }); 

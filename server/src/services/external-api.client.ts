@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 import { createSignature, getExternalApiUrl, createExternalApiHeaders, getOperationTimeout } from '../config/externalApi.js';
 import type {
   AuthRequest,
@@ -15,6 +15,7 @@ import type {
   HttpMethod
 } from '../types/external-api.js';
 import type { ApiLogRepository } from '../repositories/api-log.repository.js';
+import logger from '../config/logger.js';
 
 export interface ExternalApiClientConfig {
   maxRetries: number;
@@ -168,6 +169,7 @@ export class ExternalApiClient {
     const url = getExternalApiUrl(endpoint as any); // Используем as any для совместимости
     const startTime = Date.now();
     let lastError: Error | null = null;
+    let response: Response | null = null;
 
     // Логирование запроса
     const logData = {
@@ -196,7 +198,7 @@ export class ExternalApiClient {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-        const response = await fetch(url, {
+        response = await fetch(url, {
           method,
           headers,
           body: body ? JSON.stringify(body) : undefined,
@@ -219,63 +221,62 @@ export class ExternalApiClient {
         }
 
         if (response.ok) {
+          logger.info(`External API call successful: ${method} ${url}`, { duration, status: response.status });
           return {
             success: true,
             data: responseBody as T,
             statusCode: response.status,
             duration
           };
-        } else {
-          const error: ExternalApiError = {
-            error: (responseBody as any)?.error || 'Unknown error',
-            message: (responseBody as any)?.message || 'An error occurred',
-            statusCode: response.status
-          };
-
-          // Не повторяем попытки для 4xx ошибок (клиентские ошибки)
-          if (response.status >= 400 && response.status < 500) {
-            return {
-              success: false,
-              error,
-              statusCode: response.status,
-              duration
-            };
-          }
-
-          lastError = new Error(`HTTP ${response.status}: ${error.message}`);
         }
+        
+        // Обработка ошибок
+        const error: ExternalApiError = {
+          error: (responseBody as any)?.error || 'Unknown error',
+          message: (responseBody as any)?.message || 'An error occurred',
+          statusCode: response.status
+        };
+
+        // НЕ повторяем попытки для 4xx ошибок (клиентские ошибки)
+        if (response.status >= 400 && response.status < 500) {
+          logger.warn(`External API call failed with client error (no retry): ${method} ${url}`, { duration, status: response.status, error: error.message });
+          return {
+            success: false,
+            error,
+            statusCode: response.status,
+            duration
+          };
+        }
+        
+        // Для 5xx ошибок продолжаем и пробуем снова
+        lastError = new Error(`HTTP ${response.status}: ${error.message}`);
+        logger.warn(`External API call failed with server error (attempt ${attempt}/${this.config.maxRetries}): ${method} ${url}`, { duration, status: response.status, error: lastError });
+
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Unknown error');
-        
-        const duration = Date.now() - startTime;
-        
-        // Логирование ошибки
-        if (this.config.enableLogging && this.apiLogRepository) {
-          await this.apiLogRepository.createApiLog({
-            ...logData,
-            responseBody: { error: lastError.message },
-            statusCode: 0,
-            requestDurationMs: duration
-          });
-        }
+        logger.error(`External API call failed with network error (attempt ${attempt}/${this.config.maxRetries}): ${method} ${url}`, { error: lastError });
       }
-
-      // Если это не последняя попытка, ждем перед повтором
+        
+      // Задержка перед следующей попыткой
       if (attempt < this.config.maxRetries) {
         await this.delay(this.config.retryDelay * attempt);
       }
     }
-
-    // Все попытки исчерпаны
+    
+    // Если все попытки провалились
     const duration = Date.now() - startTime;
+    logger.error(`External API call failed after ${this.config.maxRetries} attempts: ${method} ${url}`, {
+      error: lastError,
+      duration,
+    });
     return {
       success: false,
       error: {
-        error: 'Request failed',
-        message: lastError?.message || 'All retry attempts failed',
-        statusCode: 0
+        error: lastError?.name || 'ServiceUnavailable',
+        message: lastError?.message || 'External service is unavailable after multiple retries',
+        statusCode: response?.status || 503,
       },
-      statusCode: 0,
+      statusCode: response?.status || 503,
       duration
     };
   }

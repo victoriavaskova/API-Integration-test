@@ -5,6 +5,7 @@ import { createBettingRoutes } from './betting.routes.js';
 import { createBalanceRoutes } from './balance.routes.js';
 import { createInternalRoutes } from './internal.routes.js';
 import { createAdminRoutes } from './admin.routes.js';
+import logger from '../config/logger.js';
 
 type IdempotencyMiddleware = (req: Request, res: Response, next: NextFunction) => Promise<any>;
 
@@ -16,7 +17,7 @@ export function createApiRoutes(
   idempotency: IdempotencyMiddleware
 ): Router {
   const router = Router();
-  console.log('🔧 Creating API routes with controllers:', Object.keys(controllers));
+  logger.debug('🔧 Creating API routes...');
 
   // Health check endpoint
   router.get('/health', (_req, res) => {
@@ -46,10 +47,7 @@ export function createApiRoutes(
   const balanceRoutes = createBalanceRoutes(controllers.balance);
   const adminRoutes = createAdminRoutes(controllers.betting);
   
-  console.log('🔧 Auth routes created:', typeof authRoutes);
-  console.log('🔧 Betting routes created:', typeof bettingRoutes);
-  console.log('🔧 Balance routes created:', typeof balanceRoutes);
-  console.log('🔧 Admin routes created:', typeof adminRoutes);
+  logger.debug('🔧 Auth, Betting, Balance, and Admin routes created.');
   
   router.use('/auth', authRoutes);
   router.use('/bets', bettingRoutes);
@@ -65,7 +63,7 @@ export function createApiRoutes(
   );
   router.use('/internal', internalRoutes);
 
-  console.log('🔧 All routes mounted on router');
+  logger.debug('🔧 All routes mounted on router');
   return router;
 }
 

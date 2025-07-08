@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import swaggerUi from 'swagger-ui-express';
 import { PrismaClient } from '@prisma/client';
 import { specs } from './config/swagger.js';
+import logger from './config/logger.js'; // Импортируем логгер
 import { createControllers } from './controllers/index.js';
 import { createServices } from './services/index.js';
 import { createRepositories } from './repositories/index.js';
@@ -42,7 +43,7 @@ app.use(cors({
     if (corsOrigins.includes(origin)) {
       return callback(null, true);
     } else {
-      console.warn(`🚫 CORS blocked origin: ${origin}`);
+      logger.warn(`🚫 CORS blocked origin: ${origin}`); // Заменяем console.warn
       return callback(new Error('Not allowed by CORS'), false);
     }
   },
@@ -112,11 +113,11 @@ async function initializeServices() {
     // Создаем контроллеры
     const controllers = createControllers(services);
     
-    console.log('✅ Services initialized successfully');
+    logger.info('✅ Services initialized successfully'); // Заменяем console.log
     
     return { repositories, services, controllers };
   } catch (error) {
-    console.error('❌ Failed to initialize services:', error);
+    logger.error('❌ Failed to initialize services:', error); // Заменяем console.error
     throw error;
   }
 }
@@ -132,7 +133,7 @@ async function startServer() {
     
     // Отладочный middleware для проверки всех запросов
     app.use('/api', (req, _res, next) => {
-      console.log(`🔍 API Request: ${req.method} ${req.url} -> ${req.path}`);
+      logger.debug(`🔍 API Request: ${req.method} ${req.url} -> ${req.path}`); // Заменяем console.log
       next();
     });
     
@@ -141,9 +142,9 @@ async function startServer() {
       controllers, 
       idempotencyMiddleware(repositories.idempotency)
     );
-    console.log('📋 API routes object:', typeof apiRoutes, Object.keys(apiRoutes));
+    logger.info('📋 API routes object created'); // Заменяем console.log
     app.use('/api', apiRoutes);
-    console.log('🔗 API routes connected successfully');
+    logger.info('🔗 API routes connected successfully'); // Заменяем console.log
     
     // Routes
     app.get('/', (_req, res) => {
@@ -156,7 +157,7 @@ async function startServer() {
 
     // Error handling middleware
     app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-      console.error(err.stack);
+      logger.error(err.stack); // Заменяем console.error
       res.status(500).json({ 
         statusCode: 500,
         error: 'Internal Server Error',
@@ -175,16 +176,28 @@ async function startServer() {
     
     // Запускаем сервер
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📝 Health check: http://localhost:${PORT}/api/health`);
-      console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
-      console.log(`🔒 Admin Panel: http://localhost:${PORT}/admin`);
-      console.log(`🎯 External API: https://bets.tgapps.cloud/api`);
+      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`📝 Health check: http://localhost:${PORT}/api/health`);
+      logger.info(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
+      logger.info(`🔒 Admin Panel: http://localhost:${PORT}/admin`);
+      logger.info(`🎯 External API: https://bets.tgapps.cloud/api`);
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    logger.error('❌ Failed to start server:', error); // Заменяем console.error
     process.exit(1);
   }
 }
 
+// Обработка необработанных исключений
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error); // Заменяем console.error
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', { promise, reason }); // Заменяем console.error
+  process.exit(1);
+});
+
+// Запуск сервера
 startServer();

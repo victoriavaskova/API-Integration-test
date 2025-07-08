@@ -1,5 +1,15 @@
 import type { Request, Response, NextFunction } from 'express';
-// import type { ServiceError } from '../services/base.service.js';
+import { AuthenticatedRequest } from './auth.middleware.js';
+import logger from '../config/logger.js';
+
+/**
+ * Кастомный тип для ошибок сервисного слоя, который мы будем ожидать в обработчике
+ */
+export interface ServiceError extends Error {
+  code: string;
+  details?: Record<string, unknown>;
+}
+
 
 /**
  * Интерфейс для стандартизированного ответа с ошибкой
@@ -9,7 +19,7 @@ export interface ErrorResponse {
   error: {
     code: string;
     message: string;
-    details?: any;
+    details?: Record<string, unknown>;
     timestamp: string;
     path: string;
     method: string;
@@ -25,8 +35,8 @@ export interface ErrorLogInfo {
   request: {
     method: string;
     path: string;
-    query: any;
-    body: any;
+    query: Request['query'];
+    body: Record<string, unknown>;
     user?: {
       userId: number;
       username: string;
@@ -42,7 +52,7 @@ export interface ErrorLogInfo {
  * Главный middleware для обработки ошибок
  */
 export function errorHandlerMiddleware() {
-  return (error: any, req: Request, res: Response, _next: NextFunction): void => {
+  return (error: ServiceError | Error, req: Request, res: Response, _next: NextFunction): void => {
     // Генерируем уникальный ID запроса для трекинга
     const requestId = generateRequestId();
     
@@ -54,7 +64,7 @@ export function errorHandlerMiddleware() {
         path: req.path,
         query: req.query,
         body: sanitizeRequestBody(req.body),
-        user: (req as any).user,
+        user: (req as AuthenticatedRequest).user,
         ip: req.ip || req.connection.remoteAddress || 'unknown',
         userAgent: req.get('User-Agent') || 'unknown'
       },
@@ -97,7 +107,7 @@ export function notFoundHandler() {
  * Middleware для валидации JSON
  */
 export function jsonErrorHandler() {
-  return (error: any, req: Request, res: Response, next: NextFunction): void => {
+  return (error: Error, req: Request, res: Response, next: NextFunction): void => {
     if (error instanceof SyntaxError && 'body' in error) {
       res.status(400).json({
         success: false,
@@ -105,7 +115,7 @@ export function jsonErrorHandler() {
           code: 'INVALID_JSON',
           message: 'Invalid JSON in request body',
           details: {
-            position: (error as any).body,
+            position: (error as any).body, // Оставляем any, так как свойство 'body' не стандартизировано
             received: typeof req.body
           },
           timestamp: new Date().toISOString(),
@@ -122,9 +132,9 @@ export function jsonErrorHandler() {
 /**
  * Определяет HTTP статус код на основе типа ошибки
  */
-function getStatusCodeFromError(error: any): number {
+function getStatusCodeFromError(error: ServiceError | Error): number {
   // Service errors с кодами
-  if (error.code) {
+  if ('code' in error && error.code) {
     switch (error.code) {
       case 'UNAUTHORIZED':
       case 'AUTHENTICATION_FAILED':
@@ -179,9 +189,9 @@ function getStatusCodeFromError(error: any): number {
 /**
  * Создает стандартизированный ответ с ошибкой
  */
-function createErrorResponse(error: any, req: Request, requestId: string): ErrorResponse {
+function createErrorResponse(error: ServiceError | Error, req: Request, requestId: string): ErrorResponse {
   // Если это уже Service Error
-  if (error.code && error.message) {
+  if ('code' in error && error.code && error.message) {
     return {
       success: false,
       error: {
@@ -197,7 +207,7 @@ function createErrorResponse(error: any, req: Request, requestId: string): Error
   }
 
   // Обработка стандартных ошибок
-  const code = error.code || error.name || 'INTERNAL_ERROR';
+  const code = (error as ServiceError).code || error.name || 'INTERNAL_ERROR';
   const message = error.message || 'An unexpected error occurred';
 
   return {
@@ -247,7 +257,7 @@ function logError(errorInfo: ErrorLogInfo): void {
       name: error.name,
       message: error.message,
       stack: error.stack,
-      code: (error as any).code
+      code: (error as ServiceError).code
     },
     request: {
       method: request.method,
@@ -259,32 +269,25 @@ function logError(errorInfo: ErrorLogInfo): void {
     }
   };
 
-  console.error('[ERROR]', JSON.stringify(logEntry, null, 2));
-
-  // В продакшене можно интегрировать с внешними системами логирования
-  if (process.env.NODE_ENV === 'production') {
-    // Отправка в Sentry, LogRocket, etc.
-  }
+  logger.error('Error handled in middleware', { error: logEntry });
 }
 
 /**
- * Очищает тело запроса от чувствительных данных для логирования
+ * Очищает тело запроса от чувствительных данных
  */
-function sanitizeRequestBody(body: any): any {
-  if (!body || typeof body !== 'object') {
-    return body;
-  }
+function sanitizeRequestBody(body: Record<string, unknown>): Record<string, unknown> {
+  if (!body) return {};
+
+  const sanitizedBody = { ...body };
 
   const sensitiveFields = ['password', 'token', 'secret', 'key', 'authorization'];
-  const sanitized = { ...body };
-
   for (const field of sensitiveFields) {
-    if (field in sanitized) {
-      sanitized[field] = '[REDACTED]';
+    if (field in sanitizedBody) {
+      sanitizedBody[field] = '[REDACTED]';
     }
   }
 
-  return sanitized;
+  return sanitizedBody;
 }
 
 /**

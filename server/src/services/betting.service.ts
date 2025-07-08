@@ -1,6 +1,7 @@
 import { Decimal } from '@prisma/client/runtime/library';
 import { BaseServiceImpl, type ServiceResult, type PaginatedServiceResult, SERVICE_ERROR_CODES } from './base.service.js';
 import { decrypt } from '../utils/crypto.helper.js';
+import logger from '../config/logger.js';
 // import { ExternalApiClient } from './external-api.client.js';
 import type { Bet, BetStatus } from '../types/database.js';
 // import type { PaginatedResult } from '../repositories/index.js';
@@ -116,10 +117,10 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
           if (betResult.success) {
             recommendedAmount = betResult.data.bet;
           } else {
-            console.warn('Failed to get recommended bet from external API, using fallback:', (betResult as any).error);
+            logger.warn('Failed to get recommended bet from external API, using fallback', { error: (betResult as any).error });
           }
         } else {
-          console.warn('Failed to authenticate for recommended bet, using fallback:', (authResult as any).error);
+          logger.warn('Failed to authenticate for recommended bet, using fallback', { error: (authResult as any).error });
         }
       }
 
@@ -363,7 +364,7 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
       );
 
       if (!winResult.success) {
-        console.warn('Failed to get win result from external API:', (winResult as any).error);
+        logger.warn('Failed to get win result from external API:', (winResult as any).error);
         return this.createErrorResult(
           SERVICE_ERROR_CODES.EXTERNAL_API_ERROR,
           'Failed to get bet result from external API',
