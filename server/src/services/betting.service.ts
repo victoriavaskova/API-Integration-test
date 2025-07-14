@@ -96,10 +96,9 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
       const user = userResult.data!;
       const externalAccount = user.externalApiAccounts?.[0];
       
-      let recommendedAmount = 3; // Fallback значение
+      let recommendedAmount = 3; 
 
       if (externalAccount) {
-        // Аутентификация в внешнем API
         const authResult = await this.externalApiClient.authenticate(
           externalAccount.externalUserId,
           decrypt(externalAccount.externalSecretKey),
@@ -107,7 +106,6 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         );
 
         if (authResult.success) {
-          // Получаем рекомендуемую ставку от внешнего API (GET /api/bet)
           const betResult = await this.externalApiClient.getRecommendedBet(
             externalAccount.externalUserId,
             decrypt(externalAccount.externalSecretKey),
@@ -124,7 +122,6 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         }
       }
 
-      // Получаем баланс пользователя из внешнего API
       const balanceResult = await this.repositories.balance.findByUserId(userId);
       let userBalance = 0;
       let externalBalance = 0;
@@ -134,7 +131,6 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         externalBalance = balanceResult.externalBalance ? Number(balanceResult.externalBalance) : userBalance;
       }
 
-      // Если есть внешний аккаунт, получаем актуальный баланс
       if (externalAccount) {
         const currentBalanceResult = await this.externalApiClient.getBalance(
           externalAccount.externalUserId,
@@ -144,7 +140,6 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
 
         if (currentBalanceResult.success) {
           externalBalance = currentBalanceResult.data.balance;
-          // Обновляем внешний баланс в БД
           await this.repositories.balance.updateExternalBalance(userId, new Decimal(externalBalance));
         }
       }
@@ -247,17 +242,14 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
       // 8. Обновление локальной БД
       await this.repositories.balance.updateBalance(userId, balanceAfter);
       
-      // Сначала создаем ставку
       const bet = await this.repositories.bet.create({
         userId,
         externalBetId,
         amount: new Decimal(amount),
       });
 
-      // Затем обновляем ее до завершенного состояния
       const completedBet = await this.repositories.bet.completeBet(bet.id, winAmount.toNumber());
 
-      // Транзакция списания
       await this.repositories.transaction.create({
         userId,
         betId: completedBet.id,
@@ -268,7 +260,7 @@ export class BettingServiceImpl extends BaseServiceImpl implements BettingServic
         description: `Bet placement #${completedBet.id}`
       });
       
-      // Транзакция начисления (если есть выигрыш)
+        // Транзакция начисления (если есть выигрыш)
       if (winAmount.gt(0)) {
         await this.repositories.transaction.create({
           userId,

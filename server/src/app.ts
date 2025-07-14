@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import swaggerUi from 'swagger-ui-express';
 import { PrismaClient } from '@prisma/client';
 import { specs } from './config/swagger.js';
-import logger from './config/logger.js'; // Импортируем логгер
+import logger from './config/logger.js';
 import { createControllers } from './controllers/index.js';
 import { createServices } from './services/index.js';
 import { createRepositories } from './repositories/index.js';
@@ -17,13 +17,11 @@ import { idempotencyMiddleware } from './middleware/idempotency.middleware.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3003;
 
-// Middleware
 app.use(helmet());
 
 // CORS Configuration - Support both development ports
@@ -37,13 +35,12 @@ const corsOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
     if (corsOrigins.includes(origin)) {
       return callback(null, true);
     } else {
-      logger.warn(`🚫 CORS blocked origin: ${origin}`); // Заменяем console.warn
+      logger.warn(`🚫 CORS blocked origin: ${origin}`);
       return callback(new Error('Not allowed by CORS'), false);
     }
   },
@@ -57,10 +54,9 @@ app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Apply global rate limiting
 app.use(globalLimiter);
 
-// Serve Admin Panel
+// Admin Panel
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use('/admin', express.static(path.join(__dirname, 'public/admin')));
@@ -75,17 +71,13 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
   customSiteTitle: 'Betting Integration API Documentation'
 }));
 
-// Инициализация сервисов, репозиториев и контроллеров
 async function initializeServices() {
   try {
-    // Инициализируем Prisma Client
     const prisma = new PrismaClient();
     await prisma.$connect();
     
-    // Создаем репозитории
     const repositories = createRepositories(prisma);
     
-    // Создаем конфигурацию для сервисов
     const servicesConfig = {
       auth: {
         jwtSecret: process.env.JWT_SECRET || (() => {
@@ -104,51 +96,41 @@ async function initializeServices() {
       }
     };
     
-    // Создаем сервисы
     const services = createServices(repositories, servicesConfig);
     
-    // Инициализируем глобальный AuthService для middleware
     initializeGlobalAuthService(services.auth);
     
-    // Создаем контроллеры
     const controllers = createControllers(services);
     
-    logger.info('✅ Services initialized successfully'); // Заменяем console.log
+    logger.info('✅ Services initialized successfully');
     
     return { repositories, services, controllers };
   } catch (error) {
-    logger.error('❌ Failed to initialize services:', error); // Заменяем console.error
+    logger.error('❌ Failed to initialize services:', error);
     throw error;
   }
 }
 
-// Placeholder for API routes - will be connected after services init
-// This ensures proper route order
 
-// Запуск сервера
 async function startServer() {
   try {
-    // Инициализируем сервисы
     const { controllers, repositories } = await initializeServices();
     
-    // Отладочный middleware для проверки всех запросов
     app.use('/api', (req, _res, next) => {
-      logger.debug(`🔍 API Request: ${req.method} ${req.url} -> ${req.path}`); // Заменяем console.log
+      logger.debug(`🔍 API Request: ${req.method} ${req.url} -> ${req.path}`);
       next();
     });
     
-    // Подключаем маршруты API после инициализации
     const apiRoutes = createApiRoutes(
-      controllers, 
+      controllers,
       idempotencyMiddleware(repositories.idempotency)
     );
-    logger.info('📋 API routes object created'); // Заменяем console.log
+    logger.info('📋 API routes object created');
     app.use('/api', apiRoutes);
-    logger.info('🔗 API routes connected successfully'); // Заменяем console.log
+    logger.info('🔗 API routes connected successfully');
     
-    // Routes
     app.get('/', (_req, res) => {
-      res.json({ 
+      res.json({
         message: 'Betting Integration API Server',
         documentation: '/api-docs',
         health: '/api/health'
@@ -157,8 +139,8 @@ async function startServer() {
 
     // Error handling middleware
     app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-      logger.error(err.stack); // Заменяем console.error
-      res.status(500).json({ 
+      logger.error(err.stack);
+      res.status(500).json({
         statusCode: 500,
         error: 'Internal Server Error',
         message: 'Something went wrong!'
@@ -174,7 +156,6 @@ async function startServer() {
       });
     });
     
-    // Запускаем сервер
     app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📝 Health check: http://localhost:${PORT}/api/health`);
@@ -183,21 +164,21 @@ async function startServer() {
       logger.info(`🎯 External API: https://bets.tgapps.cloud/api`);
     });
   } catch (error) {
-    logger.error('❌ Failed to start server:', error); // Заменяем console.error
+    logger.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 }
 
-// Обработка необработанных исключений
+// Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception:', error); // Заменяем console.error
+  logger.error('Uncaught Exception:', error);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', { promise, reason }); // Заменяем console.error
+  logger.error('Unhandled Rejection at:', { promise, reason });
   process.exit(1);
 });
 
-// Запуск сервера
+// Start server
 startServer();

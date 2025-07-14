@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import type { Config } from '../types/config.js';
 
-// Singleton для Prisma Client
 let prismaInstance: PrismaClient | null = null;
 
 /**
@@ -71,8 +70,6 @@ export async function checkDatabaseHealth(): Promise<boolean> {
  */
 export async function runMigrations(): Promise<void> {
   try {
-    // Prisma не предоставляет API для выполнения миграций программно
-    // Это должно быть сделано через CLI: npx prisma migrate dev
     console.log('ℹ️  Migrations should be run via CLI: npx prisma migrate dev');
   } catch (error) {
     console.error('❌ Failed to run migrations:', error);
@@ -98,8 +95,6 @@ export async function executeTransaction<T>(
  * @returns Путь к файлу резервной копии
  */
 export async function createBackup(_config: Config): Promise<string> {
-  // Это концептуальная функция для создания резервной копии
-  // В реальном приложении здесь должен быть код для создания dump'а PostgreSQL
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPath = `backup_${timestamp}.sql`;
   
@@ -118,8 +113,6 @@ export async function restoreFromBackup(
   backupPath: string,
   _config: Config
 ): Promise<void> {
-  // Это концептуальная функция для восстановления из резервной копии
-  // В реальном приложении здесь должен быть код для восстановления PostgreSQL
   console.log(`📥 Restoring from backup: ${backupPath}`);
   // Здесь должен быть код для восстановления
 }
@@ -181,11 +174,9 @@ export async function gracefulShutdown(): Promise<void> {
   await disconnectFromDatabase();
 }
 
-// Регистрируем обработчики для graceful shutdown
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 process.on('exit', gracefulShutdown);
 
-// Экспортируем Prisma Client для использования в других модулях
 export { PrismaClient } from '@prisma/client';
 export const prisma = getPrismaClient(); 

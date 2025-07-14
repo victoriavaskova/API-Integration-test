@@ -159,14 +159,14 @@ export class ExternalApiClient {
    */
   private async makeRequest<T>(
     method: HttpMethod,
-    endpoint: string, // Упрощаем тип для обхода ошибки сборки
+    endpoint: string, 
     body?: any,
     externalUserId?: string,
     secretKey?: string,
     operation?: 'auth' | 'balance' | 'bet' | 'win' | 'health',
     internalUserId?: number
   ): Promise<ExternalApiResult<T>> {
-    const url = getExternalApiUrl(endpoint as any); // Используем as any для совместимости
+    const url = getExternalApiUrl(endpoint as any); 
     const startTime = Date.now();
     let lastError: Error | null = null;
     let response: Response | null = null;
@@ -176,7 +176,7 @@ export class ExternalApiClient {
       endpoint: `/${endpoint}`,
       method,
       requestBody: body,
-      userId: internalUserId || null, // Используем внутренний userId
+      userId: internalUserId || null, 
       timestamp: new Date(),
       ipAddress: null
     };

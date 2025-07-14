@@ -26,8 +26,8 @@ export function createApiRoutes(
       timestamp: new Date().toISOString(),
       services: {
         api: 'ok',
-        database: 'ok', // TODO: implement actual DB check
-        external_api: 'ok' // TODO: implement actual external API check
+        database: 'ok',
+        external_api: 'ok'
       }
     });
   });
@@ -52,7 +52,7 @@ export function createApiRoutes(
   router.use('/auth', authRoutes);
   router.use('/bets', bettingRoutes);
   router.use('/balance', balanceRoutes);
-  router.use('/', balanceRoutes); // для /api/transactions
+  router.use('/', balanceRoutes);
   router.use('/admin', adminRoutes);
 
   // Внутренние маршруты для тестирования

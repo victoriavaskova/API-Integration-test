@@ -17,7 +17,6 @@ export class AuthController {
   login = asyncErrorHandler(async (req: Request, res: Response): Promise<void> => {
     let { username, email } = req.body;
 
-    // Исправляем если клиент отправляет вложенный объект
     if (typeof username === 'object' && username?.username) {
       username = username.username;
     }
@@ -33,7 +32,6 @@ export class AuthController {
     const result = await this.authService.login(username, email);
 
     if (result.success) {
-      // Формат ответа согласно README: { token, expiresIn }
       const loginData = {
         token: result.data!.token,
         expiresIn: result.data!.expiresIn
@@ -165,8 +163,6 @@ export class AuthController {
       return;
     }
 
-    // TODO: Реализовать тестирование внешней аутентификации
-    // Для примера возвращаем успешный ответ
     const externalResponse = {
       message: "Successfully authenticated",
       user_id: user_id,

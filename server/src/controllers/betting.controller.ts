@@ -24,7 +24,6 @@ export class BettingController {
     const result = await this.bettingService.getRecommendedBet(user.userId);
 
     if (result.success) {
-      // Формат ответа согласно README: { recommended_amount }
       const recommendedBetData = {
         recommended_amount: result.data!.recommended_amount
       };
@@ -56,10 +55,9 @@ export class BettingController {
     const result = await this.bettingService.placeBet(user.userId, amount);
 
     if (result.success) {
-      // Формат ответа согласно README: { id, amount, status, created_at }
       const betData = {
         id: formatId(result.data!.id),
-        amount: result.data!.amount.toString(), // Ensure amount is string as expected by client
+        amount: result.data!.amount.toString(),
         status: result.data!.status.toLowerCase(),
         created_at: formatDate(new Date(result.data!.created_at))
       };
@@ -106,7 +104,6 @@ export class BettingController {
     const result = await this.bettingService.getBetResult(user.userId, betId);
 
     if (result.success) {
-      // Return in the same format as getBetById for consistency
       const betData = {
         id: formatId(result.data!.id),
         amount: result.data!.amount.toString(),
@@ -168,7 +165,6 @@ export class BettingController {
     const result = await this.bettingService.getBetById(user.userId, betId);
 
     if (result.success) {
-      // Формат ответа согласно README
       const betData = {
         id: formatId(result.data!.id),
         amount: Number(result.data!.amount).toString(),
@@ -246,7 +242,6 @@ export class BettingController {
       return;
     }
 
-    // TODO: Реализовать тестирование получения ставки
     const externalResponse = {
       bet: Math.floor(Math.random() * 5) + 1 // случайная ставка от 1 до 5
     };
@@ -274,7 +269,6 @@ export class BettingController {
       return;
     }
 
-    // TODO: Реализовать тестирование размещения ставки
     const externalResponse = {
       message: "Bet placed successfully",
       bet_id: Math.random().toString(36).substr(2, 9) // случайный ID
@@ -298,7 +292,6 @@ export class BettingController {
       return;
     }
 
-    // TODO: Реализовать тестирование получения результата
     const isWin = Math.random() > 0.5; // 50% шанс выигрыша
     const externalResponse = isWin ? {
       win: 6,

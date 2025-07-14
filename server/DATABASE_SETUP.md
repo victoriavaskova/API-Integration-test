@@ -20,21 +20,6 @@
    # External API Configuration
    EXTERNAL_API_URL=https://bets.tgapps.cloud/api
    
-   # Test User Credentials (for development/testing only)
-   # IMPORTANT: Replace these with real values from API administrator
-   # These are PLACEHOLDER values and will NOT work with the real API
-   TEST_USER_1_ID=1
-   TEST_USER_1_SECRET=get_real_secret_from_api_admin
-   TEST_USER_2_ID=2
-   TEST_USER_2_SECRET=get_real_secret_from_api_admin
-   TEST_USER_3_ID=3
-   TEST_USER_3_SECRET=get_real_secret_from_api_admin
-   TEST_USER_4_ID=4
-   TEST_USER_4_SECRET=get_real_secret_from_api_admin
-   TEST_USER_5_ID=5
-   TEST_USER_5_SECRET=get_real_secret_from_api_admin
-   ADMIN_USER_ID=99
-   ADMIN_USER_SECRET=get_real_admin_secret_from_api_admin
 
    # JWT Configuration - MUST be changed in production!
    JWT_SECRET=your-super-secret-jwt-key-minimum-32-characters-change-in-production

@@ -5,7 +5,7 @@ import type { Response } from 'express';
  */
 
 /**
- * Стандартный формат ошибки согласно README
+ * Стандартный формат ошибки
  */
 export interface ApiErrorResponse {
   statusCode: number;

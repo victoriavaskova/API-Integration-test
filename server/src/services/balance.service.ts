@@ -162,8 +162,7 @@ export class BalanceServiceImpl extends BaseServiceImpl implements BalanceServic
 
       if (localBalance) {
         internalBalance = Number(localBalance.balance);
-        // ИСПРАВЛЕНИЕ: Обновляем внешний баланс в БД только при успешном получении
-        if (externalBalanceResult.success && externalBalance !== null) {
+ё        if (externalBalanceResult.success && externalBalance !== null) {
           await this.repositories.balance.updateExternalBalance(userId, new Decimal(externalBalance));
         }
       } else if (externalBalanceResult.success && externalBalance !== null) {

@@ -53,10 +53,8 @@ export interface ErrorLogInfo {
  */
 export function errorHandlerMiddleware() {
   return (error: ServiceError | Error, req: Request, res: Response, _next: NextFunction): void => {
-    // Генерируем уникальный ID запроса для трекинга
     const requestId = generateRequestId();
     
-    // Создаем объект для логирования
     const errorLogInfo: ErrorLogInfo = {
       error,
       request: {
@@ -72,10 +70,8 @@ export function errorHandlerMiddleware() {
       requestId
     };
 
-    // Логируем ошибку
     logError(errorLogInfo);
 
-    // Определяем статус код и создаем ответ
     const statusCode = getStatusCodeFromError(error);
     const errorResponse = createErrorResponse(error, req, requestId);
 

@@ -24,7 +24,6 @@ export class BalanceController {
     const result = await this.balanceService.getCurrentBalance(user.userId);
 
     if (result.success) {
-      // Формат ответа согласно README: { balance, last_updated }
       const balanceData = {
         balance: result.data!.balance,
         last_updated: result.data!.last_updated
@@ -229,7 +228,6 @@ export class BalanceController {
     const result = await this.balanceService.getTransactions(user.userId, page, limit);
 
     if (result.success) {
-      // Формат ответа согласно README: { transactions: [...], pagination: {...} }
       sendSuccessResponse(res, 200, result.data);
     } else {
       const { statusCode, error } = getErrorDetails(result.error!.code);
@@ -332,8 +330,6 @@ export class BalanceController {
       return;
     }
 
-    // TODO: Реализовать реальную проверку баланса через внешний API
-    // Симулируем ответ от внешнего API check-balance endpoint (GET)
     const actualBalance = Math.floor(Math.random() * 10000);
 
     const externalResponse = {

@@ -127,9 +127,9 @@ export class AuthServiceImpl extends BaseServiceImpl implements AuthService {
         );
       }
 
-      // Проверяем, не является ли это админским токеном
+      // Проверяем, не является ли это админским токено
       if (token === this.config.adminToken) {
-        // Создаем специальный payload для админа
+      
         const adminPayload: TokenPayload = {
           userId: 0, // Специальный ID для админа
           username: 'admin',

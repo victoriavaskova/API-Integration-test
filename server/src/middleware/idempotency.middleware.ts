@@ -11,8 +11,6 @@ export function idempotencyMiddleware(idempotencyRepo: IdempotencyKeyRepository)
     const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
 
     if (!idempotencyKey) {
-      // Можно либо пропускать, либо возвращать ошибку, если ключ обязателен
-      // В данном случае, пропускаем, если ключ не предоставлен
       return next();
     }
 

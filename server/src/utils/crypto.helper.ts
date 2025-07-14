@@ -49,7 +49,6 @@ export function decrypt(encryptedText: string): string {
 }
 
 export function createSignature(body: Record<string, any> | null, secretKey: string): string {
-  // Исправляем генерацию подписи для запросов без тела (null)
   const payload = JSON.stringify(body || {});
 
   const hmac = crypto.createHmac('sha512', secretKey);
